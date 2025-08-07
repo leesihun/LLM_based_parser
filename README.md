@@ -7,6 +7,7 @@ A comprehensive system that uses Ollama LLMs with RAG (Retrieval-Augmented Gener
 - **Excel Data Processing**: Reads positive and negative cellphone reviews from `fold_positive.xlsx` and `fold_negative.xlsx`
 - **RAG System**: Vector database with ChromaDB and sentence transformers for context retrieval
 - **Ollama Integration**: Dynamic model selection and automatic model management
+- **Multilingual Support**: Korean and English language support with automatic detection
 - **Dual Interface**: Streamlit web app and command-line interface
 - **Smart Configuration**: Environment-based settings with flexible parameters
 
@@ -115,16 +116,31 @@ The system automatically detects review text columns (`review`, `text`, `comment
 
 ## 🤖 Ollama Models
 
-Install and manage models:
+### Korean Language Support
+For Korean language processing, install Korean-capable models:
 
 ```bash
+# Recommended for Korean
+ollama pull qwen2      # Best Korean support
+ollama pull llama3     # Good multilingual support
+ollama pull gemma2     # Google's multilingual model
+
 # List available models
 ollama list
 
-# Install recommended models
-ollama pull llama3
+# Other useful models
 ollama pull mistral
 ollama pull codellama
+```
+
+### Language Configuration
+The system automatically detects Korean text and switches language context. You can also manually configure:
+
+```bash
+# In .env file
+DEFAULT_OLLAMA_MODEL=qwen2
+DEFAULT_LANGUAGE=auto  # Options: auto, en, ko
+EMBEDDING_MODEL=nomic-embed-text
 ```
 
 ## 🔧 Development

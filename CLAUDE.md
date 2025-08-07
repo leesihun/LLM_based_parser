@@ -127,8 +127,14 @@ The system implements a RAG (Retrieval-Augmented Generation) architecture:
 
 ### Model Management
 - Ensure Ollama is installed and running: `ollama serve`
-- Install required models: `ollama pull llama3` or `ollama pull mistral`
+- Install Korean-capable models: `ollama pull qwen2` (recommended) or `ollama pull llama3`
 - Configure default model in `.env` file or use CLI `--model` parameter
+
+### Korean Language Support
+- System uses `nomic-embed-text` for Korean-English embedding (optimized for multilingual tasks)
+- Automatic language detection based on Korean character presence
+- Bilingual system prompts and response templates
+- Korean models: qwen2 (best), llama3, gemma2
 
 ### Development Setup
 - Use virtual environment: `python -m venv venv && source venv/bin/activate` (or `venv\Scripts\activate` on Windows)

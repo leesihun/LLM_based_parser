@@ -118,7 +118,7 @@ class OllamaClient:
             return None
     
     def generate_with_context(self, query: str, context: str, 
-                            model: Optional[str] = None) -> Optional[str]:
+                            model: Optional[str] = None, language: str = "auto") -> Optional[str]:
         """
         Generate response with RAG context.
         
@@ -126,26 +126,62 @@ class OllamaClient:
             query: User query
             context: Retrieved context from RAG
             model: Model to use
+            language: Language preference ("auto", "en", "ko")
             
         Returns:
             Generated response
         """
-        system_prompt = """You are an AI assistant specialized in analyzing cellphone reviews. 
+        # Detect language or use specified
+        if language == "auto":
+            # Simple language detection based on Korean characters
+            korean_chars = sum(1 for char in query if '\uac00' <= char <= '\ud7a3')
+            total_chars = len([c for c in query if c.isalpha()])
+            language = "ko" if korean_chars > total_chars * 0.3 else "en"
+        
+        # System prompts in both languages
+        system_prompts = {
+            "en": """You are an AI assistant specialized in analyzing cellphone reviews. 
 You have access to a database of positive and negative cellphone reviews, specifically about foldable phones.
 
 Use the provided context to answer questions accurately. If the context doesn't contain 
 relevant information, say so clearly. Focus on insights from the review data.
 
-Context format: Reviews are tagged with [POSITIVE] or [NEGATIVE] to indicate sentiment."""
+Context format: Reviews are tagged with [POSITIVE] or [NEGATIVE] to indicate sentiment.""",
+            
+            "ko": """당신은 휴대폰 리뷰 분석 전문 AI 어시스턴트입니다.
+폴더블 폰에 대한 긍정적, 부정적 리뷰 데이터베이스에 접근할 수 있습니다.
+
+제공된 맥락을 사용하여 질문에 정확하게 답변하세요. 맥락에 관련 정보가 없다면 명확히 말씀해 주세요. 
+리뷰 데이터의 인사이트에 집중하세요.
+
+맥락 형식: 리뷰는 감정을 나타내기 위해 [POSITIVE] 또는 [NEGATIVE]로 태그가 지정됩니다."""
+        }
         
-        prompt = f"""Based on the following context from cellphone reviews, please answer the user's question.
+        system_prompt = system_prompts.get(language, system_prompts["en"])
+        
+        # Prompts in both languages
+        prompt_templates = {
+            "en": """Based on the following context from cellphone reviews, please answer the user's question.
 
 Context:
 {context}
 
 Question: {query}
 
-Please provide a helpful and accurate answer based on the review data provided."""
+Please provide a helpful and accurate answer based on the review data provided.""",
+            
+            "ko": """다음 휴대폰 리뷰 맥락을 바탕으로 사용자의 질문에 답변해 주세요.
+
+맥락:
+{context}
+
+질문: {query}
+
+제공된 리뷰 데이터를 바탕으로 도움이 되고 정확한 답변을 제공해 주세요."""
+        }
+        
+        prompt_template = prompt_templates.get(language, prompt_templates["en"])
+        prompt = prompt_template.format(context=context, query=query)
         
         return self.generate_response(
             prompt=prompt,

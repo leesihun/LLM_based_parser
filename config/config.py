@@ -22,11 +22,11 @@ class Config:
         
         # RAG System settings
         self.rag_collection_name = os.getenv("RAG_COLLECTION_NAME", "cellphone_reviews")
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
         self.chromadb_dir = self.data_dir / "chromadb"
         
         # Ollama settings
-        self.default_ollama_model = os.getenv("DEFAULT_OLLAMA_MODEL", "llama2")
+        self.default_ollama_model = os.getenv("DEFAULT_OLLAMA_MODEL", "gemma3:12b")
         self.ollama_host = os.getenv("OLLAMA_HOST", "localhost:11434")
         
         # LLM generation settings

@@ -64,7 +64,7 @@ class LLMParser:
             st.error(f"Failed to load data: {e}")
             return False
     
-    def query_system(self, user_query: str, selected_model: str) -> str:
+    def query_system(self, user_query: str, selected_model: str, language: str = "auto") -> str:
         """Query the system with RAG-enhanced LLM."""
         try:
             # Get relevant context from RAG
@@ -74,7 +74,8 @@ class LLMParser:
             response = self.ollama_client.generate_with_context(
                 query=user_query,
                 context=context,
-                model=selected_model
+                model=selected_model,
+                language=language
             )
             
             return response or "Sorry, I couldn't generate a response. Please try again."
@@ -132,7 +133,21 @@ def main():
                 )
             else:
                 st.warning("No Ollama models found. Please install models using 'ollama pull <model_name>'")
-                selected_model = st.text_input("Enter model name manually:", value="llama2")
+                selected_model = st.text_input("Enter model name manually:", value="qwen2")
+            
+            # Language selection
+            st.header("🌐 Language")
+            language_options = {
+                "Auto Detect": "auto",
+                "English": "en", 
+                "한국어": "ko"
+            }
+            selected_language_label = st.selectbox(
+                "Response Language:",
+                list(language_options.keys()),
+                index=0
+            )
+            selected_language = language_options[selected_language_label]
             
             # RAG system stats
             if hasattr(st.session_state.parser, 'rag_system') and st.session_state.parser.rag_system:
@@ -154,10 +169,16 @@ def main():
         # Chat interface
         st.header("💬 Chat with Review Data")
         
-        # Query input
+        # Query input with Korean example
+        placeholder_text = {
+            "auto": "e.g., What are the main positive aspects of foldable phones? / 폴더블 폰의 주요 장점은 무엇인가요?",
+            "en": "e.g., What are the main positive aspects of foldable phones?",
+            "ko": "예: 폴더블 폰의 주요 장점은 무엇인가요?"
+        }.get(selected_language, "Ask a question about the cellphone reviews...")
+        
         user_query = st.text_input(
             "Ask a question about the cellphone reviews:",
-            placeholder="e.g., What are the main positive aspects of foldable phones?"
+            placeholder=placeholder_text
         )
         
         # Query button
@@ -166,7 +187,7 @@ def main():
                 st.error("Please load review data first!")
             else:
                 with st.spinner("Generating response..."):
-                    response = st.session_state.parser.query_system(user_query, selected_model)
+                    response = st.session_state.parser.query_system(user_query, selected_model, selected_language)
                     
                     # Display response
                     st.markdown("### 🤖 Response:")
