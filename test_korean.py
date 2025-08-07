@@ -1,4 +1,4 @@
-"""Simple test script to validate Korean language detection functionality."""
+"""Simple test script to validate Korean language detection and Ollama embedding functionality."""
 
 import sys
 from pathlib import Path
@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent / "src"))
 
 from ollama_client import OllamaClient
+from rag_system import RAGSystem
 
 
 def test_language_detection():
@@ -68,6 +69,50 @@ Context format: Reviews are tagged with [POSITIVE] or [NEGATIVE] to indicate sen
     print("\n✅ System prompts loaded successfully")
 
 
+def test_ollama_embeddings():
+    """Test Ollama embeddings functionality."""
+    print("🔗 Testing Ollama Embeddings")
+    print("=" * 50)
+    
+    try:
+        # Initialize RAG system with Ollama embeddings
+        rag = RAGSystem(
+            collection_name="test_korean",
+            embedding_model="nomic-embed-text:latest"
+        )
+        
+        # Test documents (Korean and English)
+        test_docs = [
+            "This foldable phone has great battery life",
+            "이 폴더블 폰은 배터리 수명이 훌륭합니다",
+            "The screen quality is excellent", 
+            "화면 품질이 우수합니다"
+        ]
+        
+        print(f"Adding {len(test_docs)} test documents...")
+        rag.add_documents(test_docs)
+        
+        # Test query
+        print("Testing query retrieval...")
+        query = "배터리 수명은 어떤가요?"  # How is the battery life?
+        context = rag.get_context_for_query(query)
+        
+        print(f"Query: {query}")
+        print(f"Retrieved context: {context[:200]}...")
+        
+        # Get stats
+        stats = rag.get_collection_stats()
+        print(f"Collection stats: {stats}")
+        
+        print("✅ Ollama embeddings working correctly!")
+        
+    except Exception as e:
+        print(f"❌ Error testing Ollama embeddings: {e}")
+        return False
+    
+    return True
+
+
 if __name__ == "__main__":
     print("🇰🇷 Korean Language Support Test")
     print("=" * 60)
@@ -75,8 +120,17 @@ if __name__ == "__main__":
     test_language_detection()
     test_system_prompts()
     
+    # Test Ollama embeddings
+    embedding_success = test_ollama_embeddings()
+    
     print("🎉 Korean language support tests completed!")
-    print("\nNext steps:")
-    print("1. Install Korean-capable Ollama model: ollama pull qwen2")
-    print("2. Test with actual Korean review data")
-    print("3. Run: streamlit run src/main.py")
+    
+    if embedding_success:
+        print("\n✅ All tests passed! System is ready to use.")
+        print("\nNext steps:")
+        print("1. Install Korean-capable Ollama model: ollama pull qwen2")
+        print("2. Add your Excel files to data/ directory")
+        print("3. Run: streamlit run src/main.py")
+    else:
+        print("\n⚠️ Some tests failed. Check Ollama installation and model availability.")
+        print("Make sure: ollama pull nomic-embed-text:latest")

@@ -22,7 +22,7 @@ class Config:
         
         # RAG System settings
         self.rag_collection_name = os.getenv("RAG_COLLECTION_NAME", "cellphone_reviews")
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
         self.chromadb_dir = self.data_dir / "chromadb"
         
         # Ollama settings

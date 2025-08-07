@@ -3,7 +3,7 @@
 import chromadb
 import logging
 from typing import List, Dict, Any, Optional
-from sentence_transformers import SentenceTransformer
+import ollama
 import uuid
 from pathlib import Path
 
@@ -15,26 +15,30 @@ class RAGSystem:
     """Handles document storage, retrieval, and vector embeddings for RAG."""
     
     def __init__(self, collection_name: str = "cellphone_reviews", 
-                 embedding_model: str = "all-MiniLM-L6-v2",
+                 embedding_model: str = "nomic-embed-text:latest",
                  persist_directory: str = "data/chromadb"):
         """
-        Initialize RAG system with ChromaDB and sentence transformers.
+        Initialize RAG system with ChromaDB and Ollama embeddings.
         
         Args:
             collection_name: Name for the ChromaDB collection
-            embedding_model: HuggingFace model for embeddings
+            embedding_model: Ollama model for embeddings
             persist_directory: Directory to persist ChromaDB data
         """
         self.collection_name = collection_name
+        self.embedding_model_name = embedding_model
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         
-        # Initialize embedding model
+        # Initialize Ollama client
         try:
-            self.embedding_model = SentenceTransformer(embedding_model)
-            logger.info(f"Loaded embedding model: {embedding_model}")
+            self.ollama_client = ollama.Client()
+            logger.info(f"Connected to Ollama for embedding model: {embedding_model}")
+            
+            # Check if embedding model is available
+            self._ensure_embedding_model_available()
         except Exception as e:
-            logger.error(f"Error loading embedding model: {e}")
+            logger.error(f"Error connecting to Ollama: {e}")
             raise
         
         # Initialize ChromaDB
@@ -49,6 +53,40 @@ class RAGSystem:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
     
+    def _ensure_embedding_model_available(self):
+        """Ensure the embedding model is available in Ollama."""
+        try:
+            models_response = self.ollama_client.list()
+            available_models = [model['name'] for model in models_response['models']]
+            
+            if self.embedding_model_name not in available_models:
+                logger.warning(f"Embedding model {self.embedding_model_name} not found. Attempting to pull...")
+                self.ollama_client.pull(self.embedding_model_name)
+                logger.info(f"Successfully pulled embedding model: {self.embedding_model_name}")
+            else:
+                logger.info(f"Embedding model {self.embedding_model_name} is available")
+                
+        except Exception as e:
+            logger.error(f"Error checking embedding model availability: {e}")
+            # Don't raise here - let it fail later when actually trying to embed
+    
+    def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Ollama."""
+        embeddings = []
+        
+        for text in texts:
+            try:
+                response = self.ollama_client.embeddings(
+                    model=self.embedding_model_name,
+                    prompt=text
+                )
+                embeddings.append(response['embedding'])
+            except Exception as e:
+                logger.error(f"Error generating embedding for text: {e}")
+                raise
+        
+        return embeddings
+    
     def add_documents(self, documents: List[str], metadata: Optional[List[Dict]] = None):
         """
         Add documents to the vector database.
@@ -62,8 +100,8 @@ class RAGSystem:
             return
         
         try:
-            # Generate embeddings
-            embeddings = self.embedding_model.encode(documents).tolist()
+            # Generate embeddings using Ollama
+            embeddings = self._generate_embeddings(documents)
             
             # Generate IDs
             ids = [str(uuid.uuid4()) for _ in documents]
@@ -98,8 +136,8 @@ class RAGSystem:
             Dictionary containing query results
         """
         try:
-            # Generate query embedding
-            query_embedding = self.embedding_model.encode([query_text]).tolist()
+            # Generate query embedding using Ollama
+            query_embedding = self._generate_embeddings([query_text])
             
             # Query the collection
             results = self.collection.query(
@@ -167,7 +205,7 @@ class RAGSystem:
             return {
                 'document_count': count,
                 'collection_name': self.collection_name,
-                'embedding_model': self.embedding_model.get_sentence_embedding_dimension()
+                'embedding_model': self.embedding_model_name
             }
         except Exception as e:
             logger.error(f"Error getting collection stats: {e}")
