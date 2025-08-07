@@ -37,11 +37,9 @@ class Config:
         # Similarity threshold for RAG
         self.similarity_threshold = 0.8
         
-        # Embedding generation settings for performance optimization
-        self.embedding_batch_size = 5  # Process embeddings in smaller batches
-        self.embedding_base_delay = 0.5  # Base delay between requests (seconds)
-        self.embedding_batch_delay = 2.0  # Delay between batches (seconds)
-        self.embedding_max_retries = 5  # Max retry attempts for embedding generation
+        # Embedding generation settings optimized for GPU throughput
+        self.embedding_max_retries = 3  # Minimal retries for maximum speed
+        self.embedding_progress_interval = 100  # Show progress every N embeddings
         
         # ChromaDB batch settings to avoid batch size errors
         self.chromadb_batch_size = 1000  # Maximum documents to add to ChromaDB at once
@@ -72,10 +70,8 @@ class Config:
             'max_tokens': self.max_tokens,
             'rag_context_size': self.rag_context_size,
             'similarity_threshold': self.similarity_threshold,
-            'embedding_batch_size': self.embedding_batch_size,
-            'embedding_base_delay': self.embedding_base_delay,
-            'embedding_batch_delay': self.embedding_batch_delay,
             'embedding_max_retries': self.embedding_max_retries,
+            'embedding_progress_interval': self.embedding_progress_interval,
             'chromadb_batch_size': self.chromadb_batch_size,
             'ollama_timeout': self.ollama_timeout
         }

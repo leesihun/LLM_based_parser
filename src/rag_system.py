@@ -181,89 +181,58 @@ class RAGSystem:
             
             # Don't raise here - let it fail later when actually trying to embed
     
-    def _generate_embeddings(self, texts: List[str], batch_size: int = None) -> List[List[float]]:
-        """Generate embeddings using Ollama with batch processing and rate limiting."""
+    def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Ollama at full GPU speed."""
         embeddings = []
         
-        # Use configured batch size if not provided
-        if batch_size is None:
-            batch_size = config.embedding_batch_size
-            
-        logger.info(f"Generating embeddings for {len(texts)} texts using model: {self.embedding_model_name}")
-        logger.info(f"Using batch size: {batch_size} with rate limiting to reduce server load")
+        logger.info(f"🚀 Generating embeddings for {len(texts)} texts using model: {self.embedding_model_name}")
+        logger.info(f"⚡ Running at full GPU speed - no artificial rate limiting")
         
         import time
         
-        # Process in batches to reduce server load
-        for batch_start in range(0, len(texts), batch_size):
-            batch_end = min(batch_start + batch_size, len(texts))
-            batch_texts = texts[batch_start:batch_end]
-            
-            logger.info(f"📊 Processing batch {batch_start//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size} ({batch_start+1}-{batch_end}/{len(texts)})")
-            
-            batch_embeddings = []
-            
-            for i, text in enumerate(batch_texts):
-                global_index = batch_start + i
-                try:
-                    # Show cleaner progress without debug clutter
-                    progress_percent = ((global_index + 1) / len(texts)) * 100
-                    logger.info(f"🔄 Generating embedding {global_index+1}/{len(texts)} ({progress_percent:.1f}%)")
-                    
-                    # Keep debug for troubleshooting if needed
-                    text_preview = text[:100] + "..." if len(text) > 100 else text
-                    logger.debug(f"Processing text {global_index+1}/{len(texts)}: {text_preview}")
-                    
-                    # Generate embedding with enhanced retry logic using config settings
-                    max_retries = config.embedding_max_retries
-                    base_delay = config.embedding_base_delay
-                    
-                    for retry in range(max_retries):
-                        try:
-                            # Add base delay between requests to reduce server load
-                            if global_index > 0 or retry > 0:
-                                time.sleep(base_delay * (1.5 ** retry))  # Progressive delay
-                            
-                            response = self.ollama_client.embeddings(
-                                model=self.embedding_model_name,
-                                prompt=text
-                            )
-                            break  # Success, exit retry loop
-                            
-                        except Exception as retry_error:
-                            if retry < max_retries - 1:
-                                wait_time = base_delay * (2 ** retry)  # Exponential backoff: 0.5s, 1s, 2s, 4s, 8s
-                                logger.debug(f"Embedding request failed (attempt {retry+1}/{max_retries}), retrying in {wait_time:.1f}s: {retry_error}")
-                                time.sleep(wait_time)
-                            else:
-                                raise retry_error
-                    
-                    if 'embedding' not in response:
-                        raise ValueError(f"Invalid response from Ollama: missing 'embedding' field")
-                    
-                    batch_embeddings.append(response['embedding'])
-                    
-                except Exception as e:
-                    logger.error(f"Error generating embedding for text {global_index+1}/{len(texts)}: {e}")
-                    logger.error(f"Model: {self.embedding_model_name}")
-                    logger.error(f"Host: {config.ollama_host}")
-                    logger.error(f"Text preview: {text[:200]}...")
-                    
-                    # Provide specific error handling
-                    if "connection" in str(e).lower() or "backoff" in str(e).lower():
-                        raise ConnectionError(f"Connection issues with Ollama at {config.ollama_host}. Server may be overloaded or slow.")
-                    elif "model" in str(e).lower():
-                        raise ValueError(f"Model '{self.embedding_model_name}' not available. Run: ollama pull {self.embedding_model_name}")
-                    else:
-                        raise RuntimeError(f"Failed to generate embedding: {e}")
-            
-            embeddings.extend(batch_embeddings)
-            
-            # Longer delay between batches to let server recover
-            if batch_end < len(texts):
-                batch_delay = config.embedding_batch_delay
-                logger.info(f"✅ Batch {batch_start//batch_size + 1} complete. Pausing {batch_delay}s to let server recover...")
-                time.sleep(batch_delay)
+        for i, text in enumerate(texts):
+            try:
+                # Show progress at configured intervals
+                if (i + 1) % config.embedding_progress_interval == 0 or i == 0 or i == len(texts) - 1:
+                    progress_percent = ((i + 1) / len(texts)) * 100
+                    logger.info(f"🔄 Processing {i+1}/{len(texts)} ({progress_percent:.1f}%)")
+                
+                # Generate embedding with minimal retry logic
+                max_retries = config.embedding_max_retries
+                
+                for retry in range(max_retries):
+                    try:
+                        response = self.ollama_client.embeddings(
+                            model=self.embedding_model_name,
+                            prompt=text
+                        )
+                        break  # Success, exit retry loop
+                        
+                    except Exception as retry_error:
+                        if retry < max_retries - 1:
+                            # Minimal backoff - let GPU keep working
+                            time.sleep(0.1)  # Just 100ms delay
+                            logger.debug(f"Retry {retry+1}/{max_retries} for text {i+1}: {retry_error}")
+                        else:
+                            raise retry_error
+                
+                if 'embedding' not in response:
+                    raise ValueError(f"Invalid response from Ollama: missing 'embedding' field")
+                
+                embeddings.append(response['embedding'])
+                
+            except Exception as e:
+                logger.error(f"❌ Error generating embedding for text {i+1}/{len(texts)}: {e}")
+                logger.error(f"Model: {self.embedding_model_name}")
+                logger.error(f"Host: {config.ollama_host}")
+                
+                # Provide specific error handling
+                if "connection" in str(e).lower():
+                    raise ConnectionError(f"Connection issues with Ollama at {config.ollama_host}")
+                elif "model" in str(e).lower():
+                    raise ValueError(f"Model '{self.embedding_model_name}' not available. Run: ollama pull {self.embedding_model_name}")
+                else:
+                    raise RuntimeError(f"Failed to generate embedding: {e}")
         
         logger.info(f"🎉 Successfully generated {len(embeddings)} embeddings!")
         return embeddings
@@ -283,8 +252,8 @@ class RAGSystem:
         try:
             logger.info(f"📚 Adding {len(documents)} documents to RAG system...")
             
-            # Generate embeddings using Ollama (already batched internally)
-            logger.info("🔄 Generating embeddings for all documents...")
+            # Generate embeddings using Ollama at full GPU speed
+            logger.info("⚡ Generating embeddings for all documents at maximum speed...")
             embeddings = self._generate_embeddings(documents)
             
             # Prepare metadata
