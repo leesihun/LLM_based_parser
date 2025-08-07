@@ -241,59 +241,65 @@ class RAGSystem:
         logger.info(f"🎉 Successfully generated {len(embeddings)} embeddings!")
         return embeddings
     
-    def add_documents(self, documents: List[str], metadata: Optional[List[Dict]] = None):
+    def add_documents(self, documents, metadata: Optional[List[Dict]] = None):
         """
         Add documents to the vector database with batching to avoid ChromaDB limits.
         
         Args:
-            documents: List of text documents to add
+            documents: List of text documents OR list of detailed document dicts
             metadata: Optional list of metadata dictionaries for each document
         """
         if not documents:
             logger.warning("No documents provided to add")
             return
         
+        # Handle both formats: simple strings and detailed document objects
+        if isinstance(documents[0], dict):
+            # New detailed format: [{"text": "...", "metadata": {...}}, ...]
+            logger.info(f"📚 Adding {len(documents)} detailed documents with rich metadata...")
+            doc_texts = [doc["text"] for doc in documents]
+            doc_metadata = [doc["metadata"] for doc in documents]
+        else:
+            # Legacy format: ["text1", "text2", ...]
+            logger.info(f"📚 Adding {len(documents)} simple text documents...")
+            doc_texts = documents
+            doc_metadata = metadata or [{"source": "excel_file"} for _ in documents]
+        
         try:
-            logger.info(f"📚 Adding {len(documents)} documents to RAG system...")
-            
             # Generate embeddings using Ollama at full GPU speed
             logger.info("⚡ Generating embeddings for all documents at maximum speed...")
-            embeddings = self._generate_embeddings(documents)
-            
-            # Prepare metadata
-            if metadata is None:
-                metadata = [{"source": "excel_file"} for _ in documents]
+            embeddings = self._generate_embeddings(doc_texts)
             
             # Add documents to ChromaDB in batches to avoid batch size limits
             chromadb_batch_size = config.chromadb_batch_size
-            total_batches = (len(documents) + chromadb_batch_size - 1) // chromadb_batch_size
+            total_batches = (len(doc_texts) + chromadb_batch_size - 1) // chromadb_batch_size
             
             logger.info(f"📊 Adding documents to ChromaDB in {total_batches} batches of up to {chromadb_batch_size} documents each...")
             
-            for batch_idx in range(0, len(documents), chromadb_batch_size):
-                batch_end = min(batch_idx + chromadb_batch_size, len(documents))
+            for batch_idx in range(0, len(doc_texts), chromadb_batch_size):
+                batch_end = min(batch_idx + chromadb_batch_size, len(doc_texts))
                 batch_num = (batch_idx // chromadb_batch_size) + 1
                 
-                logger.info(f"💾 Adding batch {batch_num}/{total_batches} ({batch_idx+1}-{batch_end}/{len(documents)}) to ChromaDB...")
+                logger.info(f"💾 Adding batch {batch_num}/{total_batches} ({batch_idx+1}-{batch_end}/{len(doc_texts)}) to ChromaDB...")
                 
                 # Generate IDs for this batch
                 batch_ids = [str(uuid.uuid4()) for _ in range(batch_idx, batch_end)]
                 
                 # Add batch to collection
                 self.collection.add(
-                    documents=documents[batch_idx:batch_end],
+                    documents=doc_texts[batch_idx:batch_end],
                     embeddings=embeddings[batch_idx:batch_end],
-                    metadatas=metadata[batch_idx:batch_end],
+                    metadatas=doc_metadata[batch_idx:batch_end],
                     ids=batch_ids
                 )
                 
                 logger.info(f"✅ Batch {batch_num}/{total_batches} added successfully")
             
-            logger.info(f"🎉 Successfully added all {len(documents)} documents to RAG system!")
+            logger.info(f"🎉 Successfully added all {len(doc_texts)} documents to RAG system!")
             
         except Exception as e:
             logger.error(f"❌ Error adding documents: {e}")
-            logger.error(f"📊 Document count: {len(documents)}")
+            logger.error(f"📊 Document count: {len(doc_texts)}")
             logger.error(f"⚙️ ChromaDB batch size: {config.chromadb_batch_size}")
             
             # Provide helpful error context

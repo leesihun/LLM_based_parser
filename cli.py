@@ -25,20 +25,34 @@ def setup_rag_system():
         persist_directory=str(config.chromadb_dir)
     )
     
-    # Load data
-    print("📊 Loading review data...")
-    review_texts = excel_reader.get_review_texts()
+    # Load data using new detailed format
+    print("📊 Loading review data with detailed metadata...")
+    detailed_documents = excel_reader.get_detailed_documents()
     
-    if not review_texts:
+    if not detailed_documents:
         print(f"❌ No review data found. Please ensure {config.positive_filename} and {config.negative_filename} exist in data/ directory.")
         return False
     
-    # Add to RAG system
-    print(f"🔄 Processing {len(review_texts)} reviews...")
-    rag_system.clear_collection()
-    rag_system.add_documents(review_texts)
+    # Show detailed statistics
+    total_chars = sum(len(doc["text"]) for doc in detailed_documents)
+    avg_chars = total_chars / len(detailed_documents)
+    sentiments = {}
+    for doc in detailed_documents:
+        sentiment = doc["metadata"]["sentiment"]
+        sentiments[sentiment] = sentiments.get(sentiment, 0) + 1
     
-    print(f"✅ Successfully loaded {len(review_texts)} reviews into RAG system")
+    print(f"📈 Dataset Statistics:")
+    print(f"   Total documents: {len(detailed_documents)}")
+    print(f"   Average document length: {avg_chars:.0f} characters")
+    print(f"   Sentiment distribution: {dict(sentiments)}")
+    print(f"   Total context size: {total_chars:,} characters")
+    
+    # Add to RAG system
+    print(f"🔄 Processing {len(detailed_documents)} detailed documents...")
+    rag_system.clear_collection()
+    rag_system.add_documents(detailed_documents)
+    
+    print(f"✅ Successfully loaded {len(detailed_documents)} detailed documents into RAG system")
     return True
 
 
@@ -78,9 +92,14 @@ def query_mode():
             rag_results = rag_system.query(query, config.rag_context_size)
             
             print(f"📋 Found {len(rag_results['documents'])} relevant documents:")
-            for i, (doc, distance) in enumerate(zip(rag_results['documents'], rag_results['distances'])):
+            for i, (doc, distance, metadata) in enumerate(zip(rag_results['documents'], rag_results['distances'], rag_results['metadatas'])):
                 similarity = 1 - distance
-                print(f"  {i+1}. (distance: {distance:.3f}, similarity: {similarity:.3f})")
+                sentiment = metadata.get('sentiment', 'unknown')
+                source = metadata.get('file_source', 'unknown')
+                row_idx = metadata.get('row_index', 'unknown')
+                doc_length = metadata.get('document_length', len(doc))
+                
+                print(f"  {i+1}. Similarity: {similarity:.3f} | {sentiment.upper()} | {source} row {row_idx} | {doc_length} chars")
                 print(f"      Preview: {doc[:150]}...")
             
             # Format context for LLM - include ALL retrieved documents
@@ -89,7 +108,14 @@ def query_mode():
                 for i, doc in enumerate(rag_results['documents']):
                     context_parts.append(f"Review {i+1}: {doc}")
                 context = "\n\n".join(context_parts)
-                print(f"\n📄 Context includes {len(rag_results['documents'])} reviews, {len(context)} characters total")
+                print(f"\n📄 Context includes {len(rag_results['documents'])} reviews, {len(context):,} characters total")
+                
+                # Show sentiment distribution of retrieved docs
+                sentiments = {}
+                for metadata in rag_results['metadatas']:
+                    sentiment = metadata.get('sentiment', 'unknown')
+                    sentiments[sentiment] = sentiments.get(sentiment, 0) + 1
+                print(f"📊 Retrieved sentiment distribution: {dict(sentiments)}")
             else:
                 context = "No relevant reviews found."
                 print("\n⚠️ No relevant context found!")

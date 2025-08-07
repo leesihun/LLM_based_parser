@@ -121,3 +121,77 @@ class ExcelReader:
             texts.append(combined_text)
         
         return texts
+    
+    def get_detailed_documents(self) -> List[Dict]:
+        """Extract review data as detailed documents with metadata for enhanced RAG processing."""
+        combined_df = self.combine_reviews()
+        
+        if combined_df is None:
+            return []
+        
+        # Try common column names for review text
+        text_columns = ['review', 'text', 'comment', 'content', 'description']
+        text_column = None
+        
+        for col in text_columns:
+            if col in combined_df.columns:
+                text_column = col
+                break
+        
+        if text_column is None:
+            # If no standard column found, use the first string column
+            string_columns = combined_df.select_dtypes(include=['object']).columns
+            if len(string_columns) > 0:
+                text_column = string_columns[0]
+                logger.info(f"Using column '{text_column}' as review text")
+            else:
+                logger.error("No suitable text column found in the data")
+                return []
+        
+        logger.info(f"Creating detailed documents from {len(combined_df)} rows using '{text_column}' column")
+        
+        # Create detailed documents with rich metadata
+        documents = []
+        for idx, row in combined_df.iterrows():
+            sentiment = row.get('sentiment', 'unknown')
+            review_text = str(row[text_column])
+            
+            # Determine source file based on sentiment
+            source_file = self.positive_filename if sentiment == 'positive' else self.negative_filename
+            
+            # Create comprehensive document text with all available info
+            document_parts = [f"[{sentiment.upper()}]", review_text]
+            
+            # Add other columns as additional context if they exist
+            additional_info = []
+            for col in combined_df.columns:
+                if col not in [text_column, 'sentiment'] and pd.notna(row[col]):
+                    additional_info.append(f"{col}: {row[col]}")
+            
+            if additional_info:
+                document_parts.append(" | ".join(additional_info))
+            
+            document_text = " ".join(document_parts)
+            
+            # Create detailed metadata
+            metadata = {
+                "sentiment": sentiment,
+                "file_source": source_file,
+                "row_index": idx,
+                "text_column": text_column,
+                "available_columns": list(combined_df.columns),
+                "document_length": len(document_text)
+            }
+            
+            # Add all row data to metadata for complete context
+            for col in combined_df.columns:
+                if pd.notna(row[col]):
+                    metadata[f"data_{col}"] = str(row[col])
+            
+            documents.append({
+                "text": document_text,
+                "metadata": metadata
+            })
+        
+        logger.info(f"Created {len(documents)} detailed documents with comprehensive metadata")
+        return documents

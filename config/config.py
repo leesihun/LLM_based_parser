@@ -30,9 +30,9 @@ class Config:
         self.ollama_timeout = 60  # Timeout for Ollama requests (seconds)
         
         # LLM generation settings
-        self.default_temperature = 0.7
-        self.max_tokens = 1000
-        self.rag_context_size = 5
+        self.default_temperature = 0.4
+        self.max_tokens = 10000  # Increased for larger context
+        self.rag_context_size = 100  # Increased from 5 to 15 for more context
         
         # Similarity threshold for RAG
         self.similarity_threshold = 0.8
