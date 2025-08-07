@@ -34,20 +34,37 @@ def safe_extract_model_names(response):
         # Extract names from each model entry
         for i, model in enumerate(model_list):
             print(f"🔍 Debug - Model {i}: {model}")
+            print(f"🔍 Debug - Model {i} type: {type(model)}")
             print(f"🔍 Debug - Model {i} keys: {list(model.keys()) if hasattr(model, 'keys') else 'Not a dict'}")
             
-            # Try different field names
+            # Try different approaches based on type
             name = None
-            if isinstance(model, dict):
-                name = model.get('name') or model.get('model') or model.get('id')
-            elif isinstance(model, str):
+            
+            if isinstance(model, str):
+                # Model is directly a string (model name)
                 name = model
+                print(f"🔍 Debug - Model is string: {name}")
+            elif isinstance(model, dict):
+                # Model is a dictionary, try different field names
+                name = model.get('name') or model.get('model') or model.get('id')
+                if name:
+                    print(f"🔍 Debug - Extracted from dict field: {name}")
+                else:
+                    print(f"🔍 Debug - Dict fields available: {list(model.keys())}")
+                    # Try to get any string value from the dict
+                    for key, value in model.items():
+                        if isinstance(value, str) and value:
+                            name = value
+                            print(f"🔍 Debug - Using value from '{key}' field: {name}")
+                            break
+            else:
+                print(f"🔍 Debug - Unknown model type: {type(model)}")
             
             if name:
                 models.append(name)
-                print(f"🔍 Debug - Extracted name: {name}")
+                print(f"🔍 Debug - ✅ Extracted name: {name}")
             else:
-                print(f"⚠️ Debug - Could not extract name from model {i}")
+                print(f"⚠️ Debug - ❌ Could not extract name from model {i}: {model}")
         
         return models
         

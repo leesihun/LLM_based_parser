@@ -87,10 +87,23 @@ class RAGSystem:
             # Extract names from each model entry
             for model in model_list:
                 name = None
-                if isinstance(model, dict):
-                    name = model.get('name') or model.get('model') or model.get('id')
-                elif isinstance(model, str):
+                
+                if isinstance(model, str):
+                    # Model is directly a string (model name)
                     name = model
+                    logger.debug(f"Model is string: {name}")
+                elif isinstance(model, dict):
+                    # Model is a dictionary, try different field names
+                    name = model.get('name') or model.get('model') or model.get('id')
+                    if not name:
+                        # Try to get any string value from the dict
+                        for key, value in model.items():
+                            if isinstance(value, str) and value:
+                                name = value
+                                logger.debug(f"Using value from '{key}' field: {name}")
+                                break
+                else:
+                    logger.debug(f"Unknown model type: {type(model)}")
                 
                 if name:
                     models.append(name)
