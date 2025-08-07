@@ -45,8 +45,9 @@ def test_ollama_connection():
         print("   ollama serve")
         print(f"2. Test manual connection:")
         print(f"   curl http://{config.ollama_host}/api/tags")
-        print("3. Check host configuration in .env:")
-        print(f"   OLLAMA_HOST={config.ollama_host}")
+        print("3. Check host configuration in config/config.py:")
+        print(f"   self.ollama_host = \"{config.ollama_host}\"")
+        print("   Edit config/config.py to change host if needed")
         
         return False, None, []
 
@@ -114,9 +115,9 @@ def test_excel_files():
     if not (pos_exists and neg_exists):
         print("\n🔧 Solutions:")
         print("1. Place Excel files in data/ directory")
-        print("2. Configure custom filenames in .env:")
-        print(f"   POSITIVE_FILENAME={config.positive_filename}")
-        print(f"   NEGATIVE_FILENAME={config.negative_filename}")
+        print("2. Configure custom filenames in config/config.py:")
+        print(f"   self.positive_filename = \"{config.positive_filename}\"")
+        print(f"   self.negative_filename = \"{config.negative_filename}\"")
     
     return pos_exists and neg_exists
 

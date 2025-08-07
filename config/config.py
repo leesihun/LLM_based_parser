@@ -1,12 +1,7 @@
 """Configuration management for the LLM-based parser application."""
 
-import os
 from pathlib import Path
-from typing import Dict, Any, Optional
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
+from typing import Dict, Any
 
 
 class Config:
@@ -18,28 +13,28 @@ class Config:
         # File paths
         self.data_dir = self.base_dir / "data"
         
-        # Excel file names (configurable)
-        self.positive_filename = os.getenv("POSITIVE_FILENAME", "폴드긍정.xlsx")
-        self.negative_filename = os.getenv("NEGATIVE_FILENAME", "폴드부정.xlsx")
+        # Excel file names (directly configurable here)
+        self.positive_filename = "폴드긍정.xlsx"
+        self.negative_filename = "폴드부정.xlsx"
         self.positive_file = self.data_dir / self.positive_filename
         self.negative_file = self.data_dir / self.negative_filename
         
         # RAG System settings
-        self.rag_collection_name = os.getenv("RAG_COLLECTION_NAME", "cellphone_reviews")
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
+        self.rag_collection_name = "cellphone_reviews"
+        self.embedding_model = "nomic-embed-text:latest"
         self.chromadb_dir = self.data_dir / "chromadb"
         
         # Ollama settings
-        self.default_ollama_model = os.getenv("DEFAULT_OLLAMA_MODEL", "gemma3:12b")
-        self.ollama_host = os.getenv("OLLAMA_HOST", "localhost:11434")
+        self.default_ollama_model = "gemma3:12b"
+        self.ollama_host = "localhost:11434"
         
         # LLM generation settings
-        self.default_temperature = float(os.getenv("DEFAULT_TEMPERATURE", "0.7"))
-        self.max_tokens = int(os.getenv("MAX_TOKENS", "1000"))
-        self.rag_context_size = int(os.getenv("RAG_CONTEXT_SIZE", "5"))
+        self.default_temperature = 0.7
+        self.max_tokens = 1000
+        self.rag_context_size = 5
         
         # Similarity threshold for RAG
-        self.similarity_threshold = float(os.getenv("SIMILARITY_THRESHOLD", "0.8"))
+        self.similarity_threshold = 0.8
         
         # Ensure directories exist
         self._create_directories()
@@ -78,12 +73,21 @@ class Config:
             'chromadb_dir_exists': self.chromadb_dir.exists()
         }
     
-    @classmethod
-    def from_env_file(cls, env_file_path: Optional[str] = None):
-        """Create configuration from specific .env file."""
-        if env_file_path:
-            load_dotenv(env_file_path)
-        return cls()
+    def update_excel_files(self, positive_filename: str = None, negative_filename: str = None):
+        """Update Excel file names and paths."""
+        if positive_filename:
+            self.positive_filename = positive_filename
+            self.positive_file = self.data_dir / self.positive_filename
+        if negative_filename:
+            self.negative_filename = negative_filename
+            self.negative_file = self.data_dir / self.negative_filename
+    
+    def update_ollama_settings(self, host: str = None, model: str = None):
+        """Update Ollama settings."""
+        if host:
+            self.ollama_host = host
+        if model:
+            self.default_ollama_model = model
 
 
 # Global configuration instance

@@ -9,14 +9,14 @@ A comprehensive system that uses Ollama LLMs with RAG (Retrieval-Augmented Gener
 - **Ollama Integration**: Dynamic model selection and automatic model management
 - **Multilingual Support**: Korean and English language support with automatic detection
 - **Dual Interface**: Streamlit web app and command-line interface
-- **Smart Configuration**: Environment-based settings with flexible parameters
+- **Simple Configuration**: Direct Python configuration in config/config.py
 
 ## 📋 Quick Start
 
 ### Prerequisites
 - Python 3.8+
 - [Ollama](https://ollama.ai) installed and running
-- Excel files containing review data in the `data/` directory (filenames configurable via .env)
+- Excel files containing review data in the `data/` directory (filenames configurable in `config/config.py`)
 
 ### Installation
 
@@ -32,8 +32,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Setup configuration (optional)
-cp .env.example .env
+# Configuration is set in config/config.py
 
 # Initialize the RAG system
 python cli.py setup
@@ -89,22 +88,28 @@ LLM_based_parser/
 
 ## ⚙️ Configuration
 
-Key settings in `.env`:
+All settings are configured in `config/config.py`. Key settings include:
 
-```bash
+```python
+# Excel file names
+self.positive_filename = "폴드긍정.xlsx"
+self.negative_filename = "폴드부정.xlsx"
+
 # RAG Settings
-RAG_COLLECTION_NAME=cellphone_reviews
-EMBEDDING_MODEL=all-MiniLM-L6-v2
-SIMILARITY_THRESHOLD=0.8
+self.rag_collection_name = "cellphone_reviews"
+self.embedding_model = "nomic-embed-text:latest"
+self.similarity_threshold = 0.8
 
 # Ollama Settings
-DEFAULT_OLLAMA_MODEL=llama3
-OLLAMA_HOST=localhost:11434
+self.default_ollama_model = "gemma3:12b"
+self.ollama_host = "localhost:11434"
 
 # Generation Settings
-DEFAULT_TEMPERATURE=0.7
-MAX_TOKENS=1000
+self.default_temperature = 0.7
+self.max_tokens = 1000
 ```
+
+Edit `config/config.py` to customize these values for your setup.
 
 ## 📊 Data Requirements
 
@@ -112,10 +117,10 @@ Place your Excel files in the `data/` directory. Default filenames are:
 - `fold_positive.xlsx`: Contains positive cellphone reviews  
 - `fold_negative.xlsx`: Contains negative cellphone reviews
 
-**Custom Filenames**: Configure different filenames in your `.env` file:
-```bash
-POSITIVE_FILENAME=your_positive_file.xlsx
-NEGATIVE_FILENAME=your_negative_file.xlsx
+**Custom Filenames**: Edit the filenames directly in `config/config.py`:
+```python
+self.positive_filename = "your_positive_file.xlsx"
+self.negative_filename = "your_negative_file.xlsx"
 ```
 
 The system automatically detects review text columns (`review`, `text`, `comment`, `content`, etc.).
@@ -140,15 +145,16 @@ ollama pull codellama
 ```
 
 ### Language Configuration
-The system automatically detects Korean text and switches language context. You can also manually configure:
+The system automatically detects Korean text and switches language context. Configure settings in `config/config.py`:
 
-```bash
-# In .env file
-POSITIVE_FILENAME=my_positive_reviews.xlsx
-NEGATIVE_FILENAME=my_negative_reviews.xlsx
-DEFAULT_OLLAMA_MODEL=qwen2
-DEFAULT_LANGUAGE=auto  # Options: auto, en, ko
-EMBEDDING_MODEL=nomic-embed-text
+```python
+# File names
+self.positive_filename = "my_positive_reviews.xlsx"
+self.negative_filename = "my_negative_reviews.xlsx"
+
+# Model settings
+self.default_ollama_model = "qwen2"
+self.embedding_model = "nomic-embed-text:latest"
 ```
 
 ## 🔧 Development
@@ -175,9 +181,9 @@ ERROR: rag_system: Error generating embedding for text: Failed to connect to Oll
    curl http://localhost:11434/api/tags
    ```
 
-3. **Check host configuration in .env:**
-   ```bash
-   OLLAMA_HOST=localhost:11434  # Default
+3. **Check host configuration in config/config.py:**
+   ```python
+   self.ollama_host = "localhost:11434"  # Default
    ```
 
 4. **Test embedding model availability:**
@@ -197,10 +203,10 @@ ollama pull nomic-embed-text:latest
 ```
 
 #### Excel File Not Found
-**Check your .env configuration:**
-```bash
-POSITIVE_FILENAME=your_positive_file.xlsx
-NEGATIVE_FILENAME=your_negative_file.xlsx
+**Check your configuration in config/config.py:**
+```python
+self.positive_filename = "your_positive_file.xlsx"
+self.negative_filename = "your_negative_file.xlsx"
 ```
 
 **Verify files exist in data/ directory**

@@ -20,8 +20,7 @@ The objective of this LLM is to
 # Install dependencies
 pip install -r requirements.txt
 
-# Copy environment configuration (optional)
-cp .env.example .env
+# Set environment variables as needed (optional)
 
 # Initialize RAG system with review data
 python cli.py setup
@@ -62,7 +61,7 @@ ollama pull llama3
 ollama pull mistral
 ollama pull codellama
 
-# Default model can be set in .env file
+# Default model can be set via environment variables
 # DEFAULT_OLLAMA_MODEL=llama3
 ```
 
@@ -84,7 +83,6 @@ LLM_based_parser/
 │   ├── [negative file].xlsx # Negative cellphone reviews (configurable filename)
 │   └── chromadb/           # Vector database storage (auto-created)
 ├── requirements.txt         # Python dependencies
-├── .env.example            # Environment configuration template
 ├── cli.py                  # Command-line interface
 └── CLAUDE.md               # This file
 ```
@@ -116,21 +114,21 @@ The system implements a RAG (Retrieval-Augmented Generation) architecture:
 - **Excel Processing**: Handles Excel files with flexible column detection
 - **Vector Database**: Persistent ChromaDB storage in data/chromadb/  
 - **Model Management**: Dynamic Ollama model selection and availability checking
-- **Configuration**: Environment-based settings with .env support
+- **Configuration**: Environment-based settings via system environment variables
 
 ## Development Guidelines
 
 ### Data Requirements
-- Place Excel review files in the `data/` directory (filenames configurable via .env)
+- Place Excel review files in the `data/` directory (filenames configurable via environment variables)
 - Default filenames: `fold_positive.xlsx` and `fold_negative.xlsx`
-- Custom filenames: Set `POSITIVE_FILENAME` and `NEGATIVE_FILENAME` in .env
+- Custom filenames: Set `POSITIVE_FILENAME` and `NEGATIVE_FILENAME` environment variables
 - Excel files should contain review text in columns like 'review', 'text', 'comment', or 'content'
 - System automatically detects appropriate text columns
 
 ### Model Management
 - Ensure Ollama is installed and running: `ollama serve`
 - Install Korean-capable models: `ollama pull qwen2` (recommended) or `ollama pull llama3`
-- Configure default model in `.env` file or use CLI `--model` parameter
+- Configure default model via `DEFAULT_OLLAMA_MODEL` environment variable or use CLI `--model` parameter
 
 ### Korean Language Support
 - System uses `nomic-embed-text` for Korean-English embedding (optimized for multilingual tasks)
@@ -144,7 +142,7 @@ The system implements a RAG (Retrieval-Augmented Generation) architecture:
 - Initialize system: `python cli.py setup`
 
 ### Configuration
-- Copy `.env.example` to `.env` and modify settings as needed
+- Set environment variables as needed for your system
 - Key settings: embedding model, similarity threshold, RAG context size
 - ChromaDB data persists in `data/chromadb/` directory
 
