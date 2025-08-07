@@ -73,9 +73,35 @@ def query_mode():
                 continue
             
             print("\n🔍 Searching relevant reviews...")
-            context = rag_system.get_context_for_query(query, config.rag_context_size)
             
-            print("🤖 Generating response...")
+            # Get detailed results instead of just formatted context
+            rag_results = rag_system.query(query, config.rag_context_size)
+            
+            print(f"📋 Found {len(rag_results['documents'])} relevant documents:")
+            for i, (doc, distance) in enumerate(zip(rag_results['documents'], rag_results['distances'])):
+                similarity = 1 - distance
+                print(f"  {i+1}. (distance: {distance:.3f}, similarity: {similarity:.3f})")
+                print(f"      Preview: {doc[:150]}...")
+            
+            # Format context for LLM - include ALL retrieved documents
+            if rag_results['documents']:
+                context_parts = []
+                for i, doc in enumerate(rag_results['documents']):
+                    context_parts.append(f"Review {i+1}: {doc}")
+                context = "\n\n".join(context_parts)
+                print(f"\n📄 Context includes {len(rag_results['documents'])} reviews, {len(context)} characters total")
+            else:
+                context = "No relevant reviews found."
+                print("\n⚠️ No relevant context found!")
+                
+            # Show distances for debugging
+            if rag_results['distances']:
+                min_dist = min(rag_results['distances'])
+                max_dist = max(rag_results['distances'])
+                avg_dist = sum(rag_results['distances']) / len(rag_results['distances'])
+                print(f"📊 Distance stats - Min: {min_dist:.3f}, Max: {max_dist:.3f}, Avg: {avg_dist:.3f}")
+            
+            print("\n🤖 Generating response...")
             
             # Use direct Ollama client like RAGSystem does - same method as setup
             # Detect language (same logic as OllamaClient had)
@@ -126,6 +152,13 @@ Please provide a helpful and accurate answer based on the review data provided."
             system_prompt = system_prompts.get(language, system_prompts["en"])
             prompt_template = prompt_templates.get(language, prompt_templates["en"])
             prompt = prompt_template.format(context=context, query=query)
+            
+            # Show what we're sending to the LLM for debugging
+            print(f"🔤 Language detected: {language}")
+            print(f"📤 Sending to LLM:")
+            print(f"  System prompt: {system_prompt[:100]}...")
+            print(f"  User prompt length: {len(prompt)} characters")
+            print(f"  First 200 chars of prompt: {prompt[:200]}...")
             
             # Generate response using direct Ollama client (same as setup uses)
             messages = [
