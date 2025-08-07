@@ -85,22 +85,16 @@ def test_ollama_connection():
         
         client = ollama.Client(host=ollama_host)
         
-        # Test basic connection
-        print("📞 Calling ollama.Client().list()...")
+        # Simple connection test - just try to call list() without parsing
+        print("📞 Testing basic connection to Ollama...")
         response = client.list()
         
-        # Safe extraction with debugging
-        models = safe_extract_model_names(response)
+        print(f"✅ Connection successful!")
+        print(f"Raw response type: {type(response)}")
+        print("Ollama server is responding properly.")
         
-        if models:
-            print(f"✅ Connection successful!")
-            print(f"Available models ({len(models)}):")
-            for model in models:
-                print(f"  - {model}")
-            return True, client, models
-        else:
-            print("⚠️ Connection successful but no models found or couldn't parse response")
-            return False, client, []
+        # Don't try to parse models - just confirm connection works
+        return True, client, ["connection_verified"]
         
     except Exception as e:
         print(f"❌ Connection failed: {e}")
@@ -123,38 +117,35 @@ def test_embedding_model():
     print("\n🤖 Testing Embedding Model")
     print("=" * 50)
     
-    success, client, models = test_ollama_connection()
+    success, client, _ = test_ollama_connection()
     if not success:
         return False
     
     embedding_model = config.embedding_model
     print(f"Required embedding model: {embedding_model}")
     
-    if embedding_model in models:
-        print(f"✅ Embedding model '{embedding_model}' is available!")
+    # Skip model availability check - just test embedding generation directly
+    print("Testing embedding generation...")
+    try:
+        response = client.embeddings(
+            model=embedding_model,
+            prompt="Test embedding generation"
+        )
         
-        # Test actual embedding generation
-        try:
-            print("Testing embedding generation...")
-            response = client.embeddings(
-                model=embedding_model,
-                prompt="Test embedding generation"
-            )
-            
-            if 'embedding' in response:
-                embedding_dim = len(response['embedding'])
-                print(f"✅ Embedding generation successful! Dimension: {embedding_dim}")
-                return True
-            else:
-                print("❌ Invalid response format from embedding API")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Embedding generation failed: {e}")
+        if 'embedding' in response:
+            embedding_dim = len(response['embedding'])
+            print(f"✅ Embedding generation successful! Dimension: {embedding_dim}")
+            print(f"✅ Model '{embedding_model}' is working correctly!")
+            return True
+        else:
+            print("❌ Invalid response format from embedding API")
+            print(f"Response keys: {list(response.keys()) if hasattr(response, 'keys') else 'Not a dict'}")
             return False
-    else:
-        print(f"❌ Embedding model '{embedding_model}' not found!")
-        print(f"Install it with: ollama pull {embedding_model}")
+            
+    except Exception as e:
+        print(f"❌ Embedding generation failed: {e}")
+        if "not found" in str(e).lower():
+            print(f"💡 Install the model with: ollama pull {embedding_model}")
         return False
 
 def test_excel_files():
