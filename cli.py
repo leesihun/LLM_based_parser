@@ -9,8 +9,8 @@ sys.path.append(str(Path(__file__).parent / "src"))
 
 from excel_reader import ExcelReader
 from rag_system import RAGSystem
-from ollama_client import OllamaClient
 from config.config import config
+import ollama
 
 
 def setup_rag_system():
@@ -43,38 +43,24 @@ def setup_rag_system():
 
 
 def query_mode():
-    """Interactive query mode."""
+    """Interactive query mode using direct Ollama client like setup does."""
     print("💬 Entering interactive query mode...")
     print("Type 'quit' or 'exit' to stop\n")
     
-    # Initialize components
+    # Initialize components - use same approach as setup_rag_system
     rag_system = RAGSystem(
         collection_name=config.rag_collection_name,
         embedding_model=config.embedding_model,
         persist_directory=str(config.chromadb_dir)
     )
-    ollama_client = OllamaClient(config.default_ollama_model)
     
-    # Check if we can connect to Ollama and use the configured model
-    try:
-        # Test with a simple model check - don't try to parse complex responses
-        available_models = ollama_client.get_available_models()
-        
-        if available_models and ollama_client.default_model in available_models:
-            print(f"🤖 Using model: {ollama_client.default_model}")
-            print(f"📋 Other available models: {', '.join(available_models)}\n")
-        elif available_models:
-            print(f"⚠️ Configured model '{ollama_client.default_model}' not found")
-            print(f"📋 Available models: {', '.join(available_models)}")
-            print(f"🤖 Will try to use configured model anyway\n")
-        else:
-            # Fall back to just trying to use the configured model
-            print(f"🤖 Using configured model: {ollama_client.default_model}")
-            print("⚠️ Could not list models, but will proceed with configured model\n")
-            
-    except Exception as e:
-        print(f"⚠️ Model detection failed: {e}")
-        print(f"🤖 Will try using configured model: {ollama_client.default_model}\n")
+    # Use direct Ollama client like RAGSystem does (same as setup)
+    ollama_host = f"http://{config.ollama_host}"
+    ollama_client = ollama.Client(host=ollama_host, timeout=config.ollama_timeout)
+    model_name = config.default_ollama_model
+    
+    print(f"🤖 Using model: {model_name}")
+    print(f"🔗 Ollama host: {ollama_host}\n")
     
     while True:
         try:
@@ -90,19 +76,82 @@ def query_mode():
             context = rag_system.get_context_for_query(query, config.rag_context_size)
             
             print("🤖 Generating response...")
-            response = ollama_client.generate_with_context(
-                query=query,
-                context=context,
-                model=ollama_client.default_model
+            
+            # Use direct Ollama client like RAGSystem does - same method as setup
+            # Detect language (same logic as OllamaClient had)
+            korean_chars = sum(1 for char in query if '\uac00' <= char <= '\ud7a3')
+            total_chars = len([c for c in query if c.isalpha()])
+            language = "ko" if korean_chars > total_chars * 0.3 else "en"
+            
+            # System prompts
+            system_prompts = {
+                "en": """You are an AI assistant specialized in analyzing cellphone reviews. 
+You have access to a database of positive and negative cellphone reviews, specifically about foldable phones.
+
+Use the provided context to answer questions accurately. If the context doesn't contain 
+relevant information, say so clearly. Focus on insights from the review data.
+
+Context format: Reviews are tagged with [POSITIVE] or [NEGATIVE] to indicate sentiment.""",
+                
+                "ko": """당신은 휴대폰 리뷰 분석 전문 AI 어시스턴트입니다.
+폴더블 폰에 대한 긍정적, 부정적 리뷰 데이터베이스에 접근할 수 있습니다.
+
+제공된 맥락을 사용하여 질문에 정확하게 답변하세요. 맥락에 관련 정보가 없다면 명확히 말씀해 주세요. 
+리뷰 데이터의 인사이트에 집중하세요.
+
+맥락 형식: 리뷰는 감정을 나타내기 위해 [POSITIVE] 또는 [NEGATIVE]로 태그가 지정됩니다."""
+            }
+            
+            # Prompts
+            prompt_templates = {
+                "en": """Based on the following context from cellphone reviews, please answer the user's question.
+
+Context:
+{context}
+
+Question: {query}
+
+Please provide a helpful and accurate answer based on the review data provided.""",
+                
+                "ko": """다음 휴대폰 리뷰 맥락을 바탕으로 사용자의 질문에 답변해 주세요.
+
+맥락:
+{context}
+
+질문: {query}
+
+제공된 리뷰 데이터를 바탕으로 도움이 되고 정확한 답변을 제공해 주세요."""
+            }
+            
+            system_prompt = system_prompts.get(language, system_prompts["en"])
+            prompt_template = prompt_templates.get(language, prompt_templates["en"])
+            prompt = prompt_template.format(context=context, query=query)
+            
+            # Generate response using direct Ollama client (same as setup uses)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = ollama_client.chat(
+                model=model_name,
+                messages=messages,
+                options={
+                    "temperature": 0.3,
+                    "num_predict": config.max_tokens
+                }
             )
             
-            print(f"\n💬 Response:\n{response}\n")
+            response_text = response['message']['content']
+            print(f"\n💬 Response:\n{response_text}\n")
             print("-" * 80)
             
         except KeyboardInterrupt:
             break
         except Exception as e:
             print(f"❌ Error: {e}")
+            import traceback
+            traceback.print_exc()
     
     print("\n👋 Goodbye!")
 
