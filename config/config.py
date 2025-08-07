@@ -17,8 +17,12 @@ class Config:
         
         # File paths
         self.data_dir = self.base_dir / "data"
-        self.positive_file = self.data_dir / "fold_positive.xlsx"
-        self.negative_file = self.data_dir / "fold_negative.xlsx"
+        
+        # Excel file names (configurable)
+        self.positive_filename = os.getenv("POSITIVE_FILENAME", "폴드긍정.xlsx")
+        self.negative_filename = os.getenv("NEGATIVE_FILENAME", "폴드부정.xlsx")
+        self.positive_file = self.data_dir / self.positive_filename
+        self.negative_file = self.data_dir / self.negative_filename
         
         # RAG System settings
         self.rag_collection_name = os.getenv("RAG_COLLECTION_NAME", "cellphone_reviews")
@@ -50,6 +54,8 @@ class Config:
         return {
             'base_dir': str(self.base_dir),
             'data_dir': str(self.data_dir),
+            'positive_filename': self.positive_filename,
+            'negative_filename': self.negative_filename,
             'positive_file': str(self.positive_file),
             'negative_file': str(self.negative_file),
             'rag_collection_name': self.rag_collection_name,

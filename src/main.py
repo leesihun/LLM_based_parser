@@ -49,7 +49,7 @@ class LLMParser:
             review_texts = self.excel_reader.get_review_texts()
             
             if not review_texts:
-                st.warning("No review data found. Please ensure fold_positive.xlsx and fold_negative.xlsx exist in the data/ directory.")
+                st.warning(f"No review data found. Please ensure {self.excel_reader.positive_filename} and {self.excel_reader.negative_filename} exist in the data/ directory.")
                 return False
             
             # Clear existing data and add new data
@@ -160,7 +160,7 @@ def main():
         st.markdown("""
         ### Getting Started:
         1. Click "Initialize System" in the sidebar
-        2. Place your Excel files (`fold_positive.xlsx` and `fold_negative.xlsx`) in the `data/` directory
+        2. Place your Excel files in the `data/` directory (configurable via .env file)
         3. Click "Load Review Data" to index the reviews
         4. Select your preferred Ollama model
         5. Start asking questions about the cellphone reviews!

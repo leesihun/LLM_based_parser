@@ -4,6 +4,11 @@ import pandas as pd
 import logging
 from pathlib import Path
 from typing import List, Dict, Optional
+import sys
+
+# Add config to path
+sys.path.append(str(Path(__file__).parent.parent))
+from config.config import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,10 +17,22 @@ logger = logging.getLogger(__name__)
 class ExcelReader:
     """Handles reading and processing of Excel files containing cellphone review data."""
     
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = Path(data_dir)
-        self.positive_file = self.data_dir / "fold_positive.xlsx"
-        self.negative_file = self.data_dir / "fold_negative.xlsx"
+    def __init__(self, data_dir: Optional[str] = None, 
+                 positive_filename: Optional[str] = None, 
+                 negative_filename: Optional[str] = None):
+        """
+        Initialize ExcelReader with configurable file paths.
+        
+        Args:
+            data_dir: Data directory path (uses config default if None)
+            positive_filename: Positive reviews filename (uses config default if None)
+            negative_filename: Negative reviews filename (uses config default if None)
+        """
+        self.data_dir = Path(data_dir) if data_dir else config.data_dir
+        self.positive_filename = positive_filename or config.positive_filename
+        self.negative_filename = negative_filename or config.negative_filename
+        self.positive_file = self.data_dir / self.positive_filename
+        self.negative_file = self.data_dir / self.negative_filename
     
     def read_excel_file(self, file_path: Path) -> Optional[pd.DataFrame]:
         """Read an Excel file and return as DataFrame."""
@@ -33,11 +50,11 @@ class ExcelReader:
             return None
     
     def load_positive_reviews(self) -> Optional[pd.DataFrame]:
-        """Load positive cellphone reviews from fold_positive.xlsx."""
+        """Load positive cellphone reviews from configured positive file."""
         return self.read_excel_file(self.positive_file)
     
     def load_negative_reviews(self) -> Optional[pd.DataFrame]:
-        """Load negative cellphone reviews from fold_negative.xlsx."""
+        """Load negative cellphone reviews from configured negative file."""
         return self.read_excel_file(self.negative_file)
     
     def load_all_reviews(self) -> Dict[str, pd.DataFrame]:

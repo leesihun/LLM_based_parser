@@ -4,7 +4,7 @@ A comprehensive system that uses Ollama LLMs with RAG (Retrieval-Augmented Gener
 
 ## 🚀 Features
 
-- **Excel Data Processing**: Reads positive and negative cellphone reviews from `fold_positive.xlsx` and `fold_negative.xlsx`
+- **Excel Data Processing**: Reads positive and negative cellphone reviews from configurable Excel files
 - **RAG System**: Vector database with ChromaDB and sentence transformers for context retrieval
 - **Ollama Integration**: Dynamic model selection and automatic model management
 - **Multilingual Support**: Korean and English language support with automatic detection
@@ -16,7 +16,7 @@ A comprehensive system that uses Ollama LLMs with RAG (Retrieval-Augmented Gener
 ### Prerequisites
 - Python 3.8+
 - [Ollama](https://ollama.ai) installed and running
-- Excel files: `fold_positive.xlsx` and `fold_negative.xlsx` in the `data/` directory
+- Excel files containing review data in the `data/` directory (filenames configurable via .env)
 
 ### Installation
 
@@ -80,8 +80,8 @@ LLM_based_parser/
 ├── config/
 │   └── config.py            # Configuration management
 ├── data/
-│   ├── fold_positive.xlsx   # Positive reviews (user provided)
-│   └── fold_negative.xlsx   # Negative reviews (user provided)
+│   ├── [positive file].xlsx  # Positive reviews (configurable filename)
+│   └── [negative file].xlsx  # Negative reviews (configurable filename)
 ├── requirements.txt         # Dependencies
 ├── cli.py                  # Command-line interface
 └── README.md               # This file
@@ -108,9 +108,15 @@ MAX_TOKENS=1000
 
 ## 📊 Data Requirements
 
-Place your Excel files in the `data/` directory:
-- `fold_positive.xlsx`: Contains positive cellphone reviews
+Place your Excel files in the `data/` directory. Default filenames are:
+- `fold_positive.xlsx`: Contains positive cellphone reviews  
 - `fold_negative.xlsx`: Contains negative cellphone reviews
+
+**Custom Filenames**: Configure different filenames in your `.env` file:
+```bash
+POSITIVE_FILENAME=your_positive_file.xlsx
+NEGATIVE_FILENAME=your_negative_file.xlsx
+```
 
 The system automatically detects review text columns (`review`, `text`, `comment`, `content`, etc.).
 
@@ -138,6 +144,8 @@ The system automatically detects Korean text and switches language context. You 
 
 ```bash
 # In .env file
+POSITIVE_FILENAME=my_positive_reviews.xlsx
+NEGATIVE_FILENAME=my_negative_reviews.xlsx
 DEFAULT_OLLAMA_MODEL=qwen2
 DEFAULT_LANGUAGE=auto  # Options: auto, en, ko
 EMBEDDING_MODEL=nomic-embed-text

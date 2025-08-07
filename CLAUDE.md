@@ -9,7 +9,7 @@ Develop a codebase that uses ollama for LLM.
 Make the LLM model selectable by importing ollama settings from the computer.
 The objective of this LLM is to 
 1. Read .xlsx file containing either positive or negative aspect of the cellphone.
-- Its name is named 'fold_positive.xlsx' and 'fold_negative.xlsx'.
+- Excel filenames are configurable via environment variables (default: 'fold_positive.xlsx' and 'fold_negative.xlsx')
 2. Setup a RAG of the .xlsx file that is imported.
 3. Using the LLM from ollama, answer the questions that user asks.
 
@@ -80,8 +80,8 @@ LLM_based_parser/
 ├── config/
 │   └── config.py            # Configuration management
 ├── data/
-│   ├── fold_positive.xlsx   # Positive cellphone reviews (user provided)
-│   ├── fold_negative.xlsx   # Negative cellphone reviews (user provided)
+│   ├── [positive file].xlsx # Positive cellphone reviews (configurable filename)
+│   ├── [negative file].xlsx # Negative cellphone reviews (configurable filename)
 │   └── chromadb/           # Vector database storage (auto-created)
 ├── requirements.txt         # Python dependencies
 ├── .env.example            # Environment configuration template
@@ -121,7 +121,9 @@ The system implements a RAG (Retrieval-Augmented Generation) architecture:
 ## Development Guidelines
 
 ### Data Requirements
-- Place `fold_positive.xlsx` and `fold_negative.xlsx` files in the `data/` directory
+- Place Excel review files in the `data/` directory (filenames configurable via .env)
+- Default filenames: `fold_positive.xlsx` and `fold_negative.xlsx`
+- Custom filenames: Set `POSITIVE_FILENAME` and `NEGATIVE_FILENAME` in .env
 - Excel files should contain review text in columns like 'review', 'text', 'comment', or 'content'
 - System automatically detects appropriate text columns
 

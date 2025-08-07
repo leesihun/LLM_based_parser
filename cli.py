@@ -18,7 +18,7 @@ def setup_rag_system():
     print("🚀 Initializing RAG system...")
     
     # Initialize components
-    excel_reader = ExcelReader(str(config.data_dir))
+    excel_reader = ExcelReader()  # Uses config defaults
     rag_system = RAGSystem(
         collection_name=config.rag_collection_name,
         embedding_model=config.embedding_model,
@@ -30,7 +30,7 @@ def setup_rag_system():
     review_texts = excel_reader.get_review_texts()
     
     if not review_texts:
-        print("❌ No review data found. Please ensure Excel files exist in data/ directory.")
+        print(f"❌ No review data found. Please ensure {config.positive_filename} and {config.negative_filename} exist in data/ directory.")
         return False
     
     # Add to RAG system
