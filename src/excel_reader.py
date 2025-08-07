@@ -41,8 +41,19 @@ class ExcelReader:
                 logger.warning(f"File not found: {file_path}")
                 return None
             
+            # First, try normal reading
             df = pd.read_excel(file_path)
-            logger.info(f"Successfully read {len(df)} rows from {file_path.name}")
+            
+            # Check if data is in columns instead of rows (special case)
+            if len(df) == 0 and len(df.columns) > 1:
+                logger.info(f"Data appears to be in column headers, converting...")
+                # Convert column names to rows
+                review_texts = [col for col in df.columns if col != 'sentiment']
+                if review_texts:
+                    df = pd.DataFrame({'review': review_texts})
+                    logger.info(f"Converted {len(review_texts)} column headers to review data")
+            
+            logger.info(f"Successfully processed {len(df)} rows from {file_path.name}")
             return df
         
         except Exception as e:
