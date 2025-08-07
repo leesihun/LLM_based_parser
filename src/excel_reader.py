@@ -122,8 +122,8 @@ class ExcelReader:
         
         return texts
     
-    def get_detailed_documents(self) -> List[Dict]:
-        """Extract review data as detailed documents with metadata for enhanced RAG processing."""
+    def get_detailed_documents(self) -> List[str]:
+        """Extract review data as simple text strings."""
         combined_df = self.combine_reviews()
         
         if combined_df is None:
@@ -148,16 +148,13 @@ class ExcelReader:
                 logger.error("No suitable text column found in the data")
                 return []
         
-        logger.info(f"Creating detailed documents from {len(combined_df)} rows using '{text_column}' column")
+        logger.info(f"Creating documents from {len(combined_df)} rows using '{text_column}' column")
         
-        # Create detailed documents with rich metadata
+        # Create simple text documents
         documents = []
         for idx, row in combined_df.iterrows():
             sentiment = row.get('sentiment', 'unknown')
             review_text = str(row[text_column])
-            
-            # Determine source file based on sentiment
-            source_file = self.positive_filename if sentiment == 'positive' else self.negative_filename
             
             # Create comprehensive document text with all available info
             document_parts = [f"[{sentiment.upper()}]", review_text]
@@ -172,26 +169,7 @@ class ExcelReader:
                 document_parts.append(" | ".join(additional_info))
             
             document_text = " ".join(document_parts)
-            
-            # Create detailed metadata
-            metadata = {
-                "sentiment": sentiment,
-                "file_source": source_file,
-                "row_index": idx,
-                "text_column": text_column,
-                "available_columns": list(combined_df.columns),
-                "document_length": len(document_text)
-            }
-            
-            # Add all row data to metadata for complete context
-            for col in combined_df.columns:
-                if pd.notna(row[col]):
-                    metadata[f"data_{col}"] = str(row[col])
-            
-            documents.append({
-                "text": document_text,
-                "metadata": metadata
-            })
+            documents.append(document_text)
         
-        logger.info(f"Created {len(documents)} detailed documents with comprehensive metadata")
+        logger.info(f"Created {len(documents)} text documents")
         return documents

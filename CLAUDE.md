@@ -9,9 +9,17 @@ Develop a codebase that uses ollama for LLM.
 Make the LLM model selectable by importing ollama settings from the computer.
 The objective of this LLM is to 
 1. Read .xlsx file containing either positive or negative aspect of the cellphone.
-- Excel filenames are configurable via environment variables (default: 'fold_positive.xlsx' and 'fold_negative.xlsx')
+- Excel filenames are configurable via environment variables
 2. Setup a RAG of the .xlsx file that is imported.
 3. Using the LLM from ollama, answer the questions that user asks.
+
+## Add new features
+The LLM must be able to answer user's question such as:
+1. How many positive reviews are there?
+2. What are top 100 positive keywords regarding the given phone.
+3. How many negative reviews are there regarding battery life?
+Think hard before you answer as traditional RAG might not be able to solve these problems.
+Plan how to enable these features.
 
 ## Development Commands
 

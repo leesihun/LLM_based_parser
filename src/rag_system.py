@@ -241,29 +241,19 @@ class RAGSystem:
         logger.info(f"🎉 Successfully generated {len(embeddings)} embeddings!")
         return embeddings
     
-    def add_documents(self, documents, metadata: Optional[List[Dict]] = None):
+    def add_documents(self, documents):
         """
         Add documents to the vector database with batching to avoid ChromaDB limits.
         
         Args:
-            documents: List of text documents OR list of detailed document dicts
-            metadata: Optional list of metadata dictionaries for each document
+            documents: List of text documents (strings)
         """
         if not documents:
             logger.warning("No documents provided to add")
             return
         
-        # Handle both formats: simple strings and detailed document objects
-        if isinstance(documents[0], dict):
-            # New detailed format: [{"text": "...", "metadata": {...}}, ...]
-            logger.info(f"📚 Adding {len(documents)} detailed documents with rich metadata...")
-            doc_texts = [doc["text"] for doc in documents]
-            doc_metadata = [doc["metadata"] for doc in documents]
-        else:
-            # Legacy format: ["text1", "text2", ...]
-            logger.info(f"📚 Adding {len(documents)} simple text documents...")
-            doc_texts = documents
-            doc_metadata = metadata or [{"source": "excel_file"} for _ in documents]
+        logger.info(f"📚 Adding {len(documents)} text documents...")
+        doc_texts = documents
         
         try:
             # Generate embeddings using Ollama at full GPU speed
@@ -289,7 +279,6 @@ class RAGSystem:
                 self.collection.add(
                     documents=doc_texts[batch_idx:batch_end],
                     embeddings=embeddings[batch_idx:batch_end],
-                    metadatas=doc_metadata[batch_idx:batch_end],
                     ids=batch_ids
                 )
                 
@@ -335,14 +324,13 @@ class RAGSystem:
             
             return {
                 'documents': results['documents'][0],
-                'metadatas': results['metadatas'][0],
                 'distances': results['distances'][0],
                 'ids': results['ids'][0]
             }
             
         except Exception as e:
             logger.error(f"Error querying RAG system: {e}")
-            return {'documents': [], 'metadatas': [], 'distances': [], 'ids': []}
+            return {'documents': [], 'distances': [], 'ids': []}
     
     def get_context_for_query(self, query_text: str, n_results: int = 5) -> str:
         """

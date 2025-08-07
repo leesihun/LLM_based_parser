@@ -34,12 +34,18 @@ def setup_rag_system():
         return False
     
     # Show detailed statistics
-    total_chars = sum(len(doc["text"]) for doc in detailed_documents)
-    avg_chars = total_chars / len(detailed_documents)
+    total_chars = sum(len(doc) for doc in detailed_documents)
+    avg_chars = total_chars / len(detailed_documents) if detailed_documents else 0
+    
+    # Count sentiments from document text (they start with [POSITIVE] or [NEGATIVE])
     sentiments = {}
     for doc in detailed_documents:
-        sentiment = doc["metadata"]["sentiment"]
-        sentiments[sentiment] = sentiments.get(sentiment, 0) + 1
+        if doc.startswith("[POSITIVE]"):
+            sentiments["positive"] = sentiments.get("positive", 0) + 1
+        elif doc.startswith("[NEGATIVE]"):
+            sentiments["negative"] = sentiments.get("negative", 0) + 1
+        else:
+            sentiments["unknown"] = sentiments.get("unknown", 0) + 1
     
     print(f"📈 Dataset Statistics:")
     print(f"   Total documents: {len(detailed_documents)}")
@@ -57,24 +63,37 @@ def setup_rag_system():
 
 
 def query_mode():
-    """Interactive query mode using direct Ollama client like setup does."""
+    """Interactive query mode using hybrid query engine."""
     print("💬 Entering interactive query mode...")
     print("Type 'quit' or 'exit' to stop\n")
     
-    # Initialize components - use same approach as setup_rag_system
+    # Initialize components
     rag_system = RAGSystem(
         collection_name=config.rag_collection_name,
         embedding_model=config.embedding_model,
         persist_directory=str(config.chromadb_dir)
     )
     
-    # Use direct Ollama client like RAGSystem does (same as setup)
-    ollama_host = f"http://{config.ollama_host}"
-    ollama_client = ollama.Client(host=ollama_host, timeout=config.ollama_timeout)
-    model_name = config.default_ollama_model
+    # Initialize Ollama client
+    from src.ollama_client import OllamaClient
+    ollama_client = OllamaClient()
     
-    print(f"🤖 Using model: {model_name}")
-    print(f"🔗 Ollama host: {ollama_host}\n")
+    # Load documents for hybrid engine
+    from src.excel_reader import ExcelReader
+    reader = ExcelReader()
+    detailed_documents = reader.get_detailed_documents()
+    
+    if not detailed_documents:
+        print("❌ No documents found. Please run 'python cli.py setup' first.")
+        return
+    
+    # Initialize hybrid query engine
+    from src.query_engine import HybridQueryEngine
+    query_engine = HybridQueryEngine(detailed_documents, rag_system, ollama_client)
+    
+    print(f"🤖 Using model: {config.default_ollama_model}")
+    print(f"📊 Loaded {len(detailed_documents)} documents for analysis")
+    print(f"🔧 Hybrid query engine ready (RAG + Analytics)\n")
     
     while True:
         try:
@@ -86,123 +105,56 @@ def query_mode():
             if not query:
                 continue
             
-            print("\n🔍 Searching relevant reviews...")
+            print("\n🔍 Processing query...")
             
-            # Get detailed results instead of just formatted context
-            rag_results = rag_system.query(query, config.rag_context_size)
+            # Process with hybrid query engine
+            result = query_engine.process_query(query)
             
-            print(f"📋 Found {len(rag_results['documents'])} relevant documents:")
-            for i, (doc, distance, metadata) in enumerate(zip(rag_results['documents'], rag_results['distances'], rag_results['metadatas'])):
-                similarity = 1 - distance
-                sentiment = metadata.get('sentiment', 'unknown')
-                source = metadata.get('file_source', 'unknown')
-                row_idx = metadata.get('row_index', 'unknown')
-                doc_length = metadata.get('document_length', len(doc))
+            print(f"📋 Query type: {result['type'].upper()} (confidence: {result['confidence']:.2f})")
+            print(f"🔧 Modules used: {', '.join(result['modules_used'])}")
+            
+            # Display results based on query type
+            if result['type'] == 'count':
+                data = result['data']
+                print(f"🔢 Count result: {data.get('count', 0)}")
+                if 'breakdown' in data:
+                    breakdown = data['breakdown']
+                    print(f"   Breakdown: {breakdown.get('positive', 0)} positive, {breakdown.get('negative', 0)} negative")
                 
-                print(f"  {i+1}. Similarity: {similarity:.3f} | {sentiment.upper()} | {source} row {row_idx} | {doc_length} chars")
-                print(f"      Preview: {doc[:150]}...")
-            
-            # Format context for LLM - include ALL retrieved documents
-            if rag_results['documents']:
-                context_parts = []
-                for i, doc in enumerate(rag_results['documents']):
-                    context_parts.append(f"Review {i+1}: {doc}")
-                context = "\n\n".join(context_parts)
-                print(f"\n📄 Context includes {len(rag_results['documents'])} reviews, {len(context):,} characters total")
+            elif result['type'] == 'keyword_extraction':
+                data = result['data']
+                keywords = data.get('keywords', [])[:10]  # Show top 10
+                print(f"🔑 Top keywords:")
+                for i, (word, score) in enumerate(keywords, 1):
+                    print(f"   {i}. {word} ({score:.2f})")
                 
-                # Show sentiment distribution of retrieved docs
-                sentiments = {}
-                for metadata in rag_results['metadatas']:
-                    sentiment = metadata.get('sentiment', 'unknown')
-                    sentiments[sentiment] = sentiments.get(sentiment, 0) + 1
-                print(f"📊 Retrieved sentiment distribution: {dict(sentiments)}")
-            else:
-                context = "No relevant reviews found."
-                print("\n⚠️ No relevant context found!")
+            elif result['type'] == 'statistics':
+                data = result['data']
+                sentiment_counts = data.get('sentiment_counts', {})
+                print(f"📊 Dataset statistics:")
+                print(f"   Total: {sentiment_counts.get('total', 0)} reviews")
+                print(f"   Positive: {sentiment_counts.get('positive', 0)}")
+                print(f"   Negative: {sentiment_counts.get('negative', 0)}")
                 
-            # Show distances for debugging
-            if rag_results['distances']:
-                min_dist = min(rag_results['distances'])
-                max_dist = max(rag_results['distances'])
-                avg_dist = sum(rag_results['distances']) / len(rag_results['distances'])
-                print(f"📊 Distance stats - Min: {min_dist:.3f}, Max: {max_dist:.3f}, Avg: {avg_dist:.3f}")
-            
-            print("\n🤖 Generating response...")
-            
-            # Use direct Ollama client like RAGSystem does - same method as setup
-            # Detect language (same logic as OllamaClient had)
-            korean_chars = sum(1 for char in query if '\uac00' <= char <= '\ud7a3')
-            total_chars = len([c for c in query if c.isalpha()])
-            language = "ko" if korean_chars > total_chars * 0.3 else "en"
-            
-            # System prompts
-            system_prompts = {
-                "en": """You are an AI assistant specialized in analyzing cellphone reviews. 
-You have access to a database of positive and negative cellphone reviews, specifically about foldable phones.
-
-Use the provided context to answer questions accurately. If the context doesn't contain 
-relevant information, say so clearly. Focus on insights from the review data.
-
-Context format: Reviews are tagged with [POSITIVE] or [NEGATIVE] to indicate sentiment.""",
+            elif result['type'] == 'comparison':
+                data = result['data']
+                pos_keywords = data.get('keyword_comparison', {}).get('positive', [])[:5]
+                neg_keywords = data.get('keyword_comparison', {}).get('negative', [])[:5]
+                print(f"⚖️ Sentiment comparison:")
+                print(f"   Top positive: {', '.join(word for word, score in pos_keywords)}")
+                print(f"   Top negative: {', '.join(word for word, score in neg_keywords)}")
                 
-                "ko": """당신은 휴대폰 리뷰 분석 전문 AI 어시스턴트입니다.
-폴더블 폰에 대한 긍정적, 부정적 리뷰 데이터베이스에 접근할 수 있습니다.
-
-제공된 맥락을 사용하여 질문에 정확하게 답변하세요. 맥락에 관련 정보가 없다면 명확히 말씀해 주세요. 
-리뷰 데이터의 인사이트에 집중하세요.
-
-맥락 형식: 리뷰는 감정을 나타내기 위해 [POSITIVE] 또는 [NEGATIVE]로 태그가 지정됩니다."""
-            }
+            else:  # semantic_search
+                data = result['data']
+                rag_results = data.get('rag_results', {})
+                print(f"📋 Found {len(rag_results.get('documents', []))} relevant documents")
             
-            # Prompts
-            prompt_templates = {
-                "en": """Based on the following context from cellphone reviews, please answer the user's question.
-
-Context:
-{context}
-
-Question: {query}
-
-Please provide a helpful and accurate answer based on the review data provided.""",
+            print(f"\n💬 Response:")
+            print(result['summary'])
+            
+            if 'error' in result:
+                print(f"\n⚠️ Error: {result['error']}")
                 
-                "ko": """다음 휴대폰 리뷰 맥락을 바탕으로 사용자의 질문에 답변해 주세요.
-
-맥락:
-{context}
-
-질문: {query}
-
-제공된 리뷰 데이터를 바탕으로 도움이 되고 정확한 답변을 제공해 주세요."""
-            }
-            
-            system_prompt = system_prompts.get(language, system_prompts["en"])
-            prompt_template = prompt_templates.get(language, prompt_templates["en"])
-            prompt = prompt_template.format(context=context, query=query)
-            
-            # Show what we're sending to the LLM for debugging
-            print(f"🔤 Language detected: {language}")
-            print(f"📤 Sending to LLM:")
-            print(f"  System prompt: {system_prompt[:100]}...")
-            print(f"  User prompt length: {len(prompt)} characters")
-            print(f"  First 200 chars of prompt: {prompt[:200]}...")
-            
-            # Generate response using direct Ollama client (same as setup uses)
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-            
-            response = ollama_client.chat(
-                model=model_name,
-                messages=messages,
-                options={
-                    "temperature": 0.3,
-                    "num_predict": config.max_tokens
-                }
-            )
-            
-            response_text = response['message']['content']
-            print(f"\n💬 Response:\n{response_text}\n")
             print("-" * 80)
             
         except KeyboardInterrupt:
@@ -215,6 +167,44 @@ Please provide a helpful and accurate answer based on the review data provided."
     print("\n👋 Goodbye!")
 
 
+def launch_excel_viewer():
+    """Launch the Excel viewer Jupyter notebook."""
+    import subprocess
+    import os
+    from pathlib import Path
+    
+    notebook_path = Path("excel_viewer.ipynb")
+    
+    if not notebook_path.exists():
+        print(f"❌ Excel viewer not found: {notebook_path}")
+        print("Make sure excel_viewer.ipynb is in the current directory.")
+        return
+    
+    print("📊 Launching Excel Viewer...")
+    print(f"🚀 Opening Jupyter notebook: {notebook_path}")
+    
+    try:
+        # Try to launch with jupyter
+        print("🔧 Starting Jupyter Notebook...")
+        subprocess.run(["jupyter", "notebook", str(notebook_path)], check=False)
+    except FileNotFoundError:
+        print("⚠️ Jupyter not found. Trying alternative methods...")
+        
+        # Try jupyter-lab as alternative
+        try:
+            print("🔧 Starting Jupyter Lab...")
+            subprocess.run(["jupyter-lab", str(notebook_path)], check=False)
+        except FileNotFoundError:
+            print("❌ Neither 'jupyter notebook' nor 'jupyter-lab' found.")
+            print("\n💡 Installation options:")
+            print("   pip install notebook")
+            print("   pip install jupyterlab")
+            print("\n💡 Alternative: Open the file directly:")
+            print(f"   - VS Code: Open {notebook_path}")
+            print(f"   - Any Jupyter-compatible editor")
+            print(f"   - Or copy/paste cells into a Python script")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -224,13 +214,14 @@ def main():
 Examples:
   python cli.py setup          # Initialize RAG system with review data
   python cli.py query          # Start interactive query mode
-  python cli.py status         # Show system status
+  python cli.py status         # Show system status  
+  python cli.py view           # Launch Excel viewer (Jupyter notebook)
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['setup', 'query', 'status'],
+        choices=['setup', 'query', 'status', 'view'],
         help='Command to execute'
     )
     
@@ -257,6 +248,9 @@ Examples:
         print("📊 System Status:")
         print(f"Config: {config.to_dict()}")
         print(f"Files: {config.get_file_status()}")
+    
+    elif args.command == 'view':
+        launch_excel_viewer()
 
 
 if __name__ == "__main__":
