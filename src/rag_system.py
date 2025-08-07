@@ -6,6 +6,11 @@ from typing import List, Dict, Any, Optional
 import ollama
 import uuid
 from pathlib import Path
+import sys
+
+# Add config to path
+sys.path.append(str(Path(__file__).parent.parent))
+from config.config import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,15 +35,25 @@ class RAGSystem:
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
         
-        # Initialize Ollama client
+        # Initialize Ollama client with configured host
         try:
-            self.ollama_client = ollama.Client()
-            logger.info(f"Connected to Ollama for embedding model: {embedding_model}")
+            ollama_host = f"http://{config.ollama_host}"
+            self.ollama_client = ollama.Client(host=ollama_host)
+            logger.info(f"Connecting to Ollama at {ollama_host} for embedding model: {embedding_model}")
+            
+            # Test connection before proceeding
+            self._test_ollama_connection()
             
             # Check if embedding model is available
             self._ensure_embedding_model_available()
+            
+            logger.info(f"Successfully connected to Ollama and verified embedding model: {embedding_model}")
         except Exception as e:
-            logger.error(f"Error connecting to Ollama: {e}")
+            logger.error(f"Error connecting to Ollama at {config.ollama_host}: {e}")
+            logger.error("Troubleshooting:")
+            logger.error("1. Ensure Ollama is running: 'ollama serve'")
+            logger.error("2. Check if host/port is correct in .env: OLLAMA_HOST=localhost:11434")
+            logger.error(f"3. Test connection: curl http://{config.ollama_host}/api/tags")
             raise
         
         # Initialize ChromaDB
@@ -52,6 +67,19 @@ class RAGSystem:
         except Exception as e:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
+    
+    def _test_ollama_connection(self):
+        """Test connection to Ollama server."""
+        try:
+            # Test basic connection by listing models
+            models_response = self.ollama_client.list()
+            available_models = [model['name'] for model in models_response['models']]
+            logger.info(f"Ollama connection successful. Available models: {len(available_models)}")
+            logger.debug(f"Available models: {available_models}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to connect to Ollama server: {e}")
+            raise ConnectionError(f"Cannot connect to Ollama at {config.ollama_host}. Is Ollama running?")
     
     def _ensure_embedding_model_available(self):
         """Ensure the embedding model is available in Ollama."""
@@ -74,17 +102,39 @@ class RAGSystem:
         """Generate embeddings using Ollama."""
         embeddings = []
         
-        for text in texts:
+        logger.debug(f"Generating embeddings for {len(texts)} texts using model: {self.embedding_model_name}")
+        
+        for i, text in enumerate(texts):
             try:
+                # Truncate text preview for logging
+                text_preview = text[:100] + "..." if len(text) > 100 else text
+                logger.debug(f"Processing text {i+1}/{len(texts)}: {text_preview}")
+                
                 response = self.ollama_client.embeddings(
                     model=self.embedding_model_name,
                     prompt=text
                 )
+                
+                if 'embedding' not in response:
+                    raise ValueError(f"Invalid response from Ollama: missing 'embedding' field")
+                
                 embeddings.append(response['embedding'])
+                
             except Exception as e:
-                logger.error(f"Error generating embedding for text: {e}")
-                raise
+                logger.error(f"Error generating embedding for text {i+1}/{len(texts)}: {e}")
+                logger.error(f"Model: {self.embedding_model_name}")
+                logger.error(f"Host: {config.ollama_host}")
+                logger.error(f"Text preview: {text[:200]}...")
+                
+                # Provide specific error handling
+                if "connection" in str(e).lower():
+                    raise ConnectionError(f"Lost connection to Ollama at {config.ollama_host}. Check if Ollama is still running.")
+                elif "model" in str(e).lower():
+                    raise ValueError(f"Model '{self.embedding_model_name}' not available. Run: ollama pull {self.embedding_model_name}")
+                else:
+                    raise RuntimeError(f"Failed to generate embedding: {e}")
         
+        logger.info(f"Successfully generated {len(embeddings)} embeddings")
         return embeddings
     
     def add_documents(self, documents: List[str], metadata: Optional[List[Dict]] = None):

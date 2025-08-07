@@ -155,6 +155,71 @@ EMBEDDING_MODEL=nomic-embed-text
 
 See [CLAUDE.md](CLAUDE.md) for detailed development guidelines and architecture notes.
 
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### "Failed to connect to Ollama" Error
+```
+ERROR: rag_system: Error generating embedding for text: Failed to connect to Ollama
+```
+
+**Solutions:**
+1. **Check Ollama is running:**
+   ```bash
+   ollama serve
+   ```
+
+2. **Verify connection:**
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+3. **Check host configuration in .env:**
+   ```bash
+   OLLAMA_HOST=localhost:11434  # Default
+   ```
+
+4. **Test embedding model availability:**
+   ```bash
+   ollama list
+   ollama pull nomic-embed-text:latest
+   ```
+
+#### Model Not Found Error
+```
+ERROR: Model 'nomic-embed-text:latest' not available
+```
+
+**Solution:**
+```bash
+ollama pull nomic-embed-text:latest
+```
+
+#### Excel File Not Found
+**Check your .env configuration:**
+```bash
+POSITIVE_FILENAME=your_positive_file.xlsx
+NEGATIVE_FILENAME=your_negative_file.xlsx
+```
+
+**Verify files exist in data/ directory**
+
+#### Permission Errors on ChromaDB
+**Solution:**
+```bash
+rm -rf data/chromadb/  # Remove existing database
+python cli.py setup    # Reinitialize
+```
+
+### Debug Mode
+Enable debug logging by setting:
+```bash
+export PYTHONPATH=$PYTHONPATH:.
+python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
+python cli.py setup
+```
+
 ## 📄 License
 
 MIT License
