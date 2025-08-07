@@ -68,15 +68,59 @@ class RAGSystem:
             logger.error(f"Error initializing ChromaDB: {e}")
             raise
     
+    def _safe_extract_model_names(self, response):
+        """Safely extract model names from Ollama response."""
+        try:
+            models = []
+            
+            # Handle different response structures
+            if hasattr(response, 'keys') and 'models' in response:
+                model_list = response['models']
+                logger.debug(f"Found 'models' key with {len(model_list)} items")
+            elif isinstance(response, list):
+                model_list = response
+                logger.debug(f"Using response as direct list with {len(model_list)} items")
+            else:
+                logger.warning(f"Unexpected response structure: {type(response)}")
+                return []
+            
+            # Extract names from each model entry
+            for model in model_list:
+                name = None
+                if isinstance(model, dict):
+                    name = model.get('name') or model.get('model') or model.get('id')
+                elif isinstance(model, str):
+                    name = model
+                
+                if name:
+                    models.append(name)
+            
+            return models
+            
+        except Exception as e:
+            logger.error(f"Error extracting model names: {e}")
+            logger.debug(f"Raw response: {response}")
+            return []
+
     def _test_ollama_connection(self):
         """Test connection to Ollama server."""
         try:
             # Test basic connection by listing models
+            logger.debug("Testing Ollama connection by listing models")
             models_response = self.ollama_client.list()
-            available_models = [model['name'] for model in models_response['models']]
-            logger.info(f"Ollama connection successful. Available models: {len(available_models)}")
-            logger.debug(f"Available models: {available_models}")
-            return True
+            
+            # Safe extraction
+            available_models = self._safe_extract_model_names(models_response)
+            
+            if available_models:
+                logger.info(f"Ollama connection successful. Available models: {len(available_models)}")
+                logger.debug(f"Available models: {available_models}")
+                return True
+            else:
+                logger.warning("Connected to Ollama but no models found or couldn't parse response")
+                logger.debug(f"Raw response: {models_response}")
+                return False
+                
         except Exception as e:
             logger.error(f"Failed to connect to Ollama server: {e}")
             raise ConnectionError(f"Cannot connect to Ollama at {config.ollama_host}. Is Ollama running?")
@@ -84,18 +128,33 @@ class RAGSystem:
     def _ensure_embedding_model_available(self):
         """Ensure the embedding model is available in Ollama."""
         try:
+            logger.debug("Checking embedding model availability")
             models_response = self.ollama_client.list()
-            available_models = [model['name'] for model in models_response['models']]
+            
+            # Safe extraction
+            available_models = self._safe_extract_model_names(models_response)
+            
+            if not available_models:
+                logger.warning("Could not parse model list from Ollama response")
+                logger.debug(f"Raw response: {models_response}")
+                return
+            
+            logger.debug(f"Available models: {available_models}")
+            logger.debug(f"Looking for embedding model: {self.embedding_model_name}")
             
             if self.embedding_model_name not in available_models:
                 logger.warning(f"Embedding model {self.embedding_model_name} not found. Attempting to pull...")
-                self.ollama_client.pull(self.embedding_model_name)
-                logger.info(f"Successfully pulled embedding model: {self.embedding_model_name}")
+                try:
+                    self.ollama_client.pull(self.embedding_model_name)
+                    logger.info(f"Successfully pulled embedding model: {self.embedding_model_name}")
+                except Exception as pull_error:
+                    logger.error(f"Failed to pull embedding model: {pull_error}")
             else:
                 logger.info(f"Embedding model {self.embedding_model_name} is available")
                 
         except Exception as e:
             logger.error(f"Error checking embedding model availability: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
             # Don't raise here - let it fail later when actually trying to embed
     
     def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:

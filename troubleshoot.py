@@ -15,6 +15,47 @@ import ollama
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
+def safe_extract_model_names(response):
+    """Safely extract model names from Ollama response."""
+    try:
+        print(f"🔍 Debug - Raw response type: {type(response)}")
+        print(f"🔍 Debug - Response keys: {list(response.keys()) if hasattr(response, 'keys') else 'Not a dict'}")
+        
+        models = []
+        
+        # Handle different response structures
+        if 'models' in response:
+            model_list = response['models']
+            print(f"🔍 Debug - Found 'models' key with {len(model_list)} items")
+        else:
+            model_list = response if isinstance(response, list) else []
+            print(f"🔍 Debug - Using response as direct list with {len(model_list)} items")
+        
+        # Extract names from each model entry
+        for i, model in enumerate(model_list):
+            print(f"🔍 Debug - Model {i}: {model}")
+            print(f"🔍 Debug - Model {i} keys: {list(model.keys()) if hasattr(model, 'keys') else 'Not a dict'}")
+            
+            # Try different field names
+            name = None
+            if isinstance(model, dict):
+                name = model.get('name') or model.get('model') or model.get('id')
+            elif isinstance(model, str):
+                name = model
+            
+            if name:
+                models.append(name)
+                print(f"🔍 Debug - Extracted name: {name}")
+            else:
+                print(f"⚠️ Debug - Could not extract name from model {i}")
+        
+        return models
+        
+    except Exception as e:
+        print(f"❌ Debug - Error extracting model names: {e}")
+        print(f"🔍 Debug - Raw response: {response}")
+        return []
+
 def test_ollama_connection():
     """Test connection to Ollama server."""
     print("🔍 Testing Ollama Connection")
@@ -28,18 +69,27 @@ def test_ollama_connection():
         client = ollama.Client(host=ollama_host)
         
         # Test basic connection
+        print("📞 Calling ollama.Client().list()...")
         response = client.list()
-        models = [model['name'] for model in response['models']]
         
-        print(f"✅ Connection successful!")
-        print(f"Available models ({len(models)}):")
-        for model in models:
-            print(f"  - {model}")
+        # Safe extraction with debugging
+        models = safe_extract_model_names(response)
         
-        return True, client, models
+        if models:
+            print(f"✅ Connection successful!")
+            print(f"Available models ({len(models)}):")
+            for model in models:
+                print(f"  - {model}")
+            return True, client, models
+        else:
+            print("⚠️ Connection successful but no models found or couldn't parse response")
+            return False, client, []
         
     except Exception as e:
         print(f"❌ Connection failed: {e}")
+        print(f"🔍 Debug - Error type: {type(e).__name__}")
+        print(f"🔍 Debug - Error details: {str(e)}")
+        
         print("\n🔧 Troubleshooting steps:")
         print("1. Check if Ollama is running:")
         print("   ollama serve")
