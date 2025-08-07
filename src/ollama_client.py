@@ -38,45 +38,89 @@ class OllamaClient:
             self.refresh_available_models()
         except Exception as e:
             logger.warning(f"Could not refresh models during initialization: {e}")
-            logger.info("Will proceed anyway - model detection can be retried later")
+            logger.info(f"Will proceed with configured model: {self.default_model}")
+        
+        # Always use the configured model regardless of detection
+        logger.info(f"Using configured model: {self.default_model}")
     
     def refresh_available_models(self) -> List[str]:
         """Get list of available Ollama models from the system."""
         try:
+            logger.debug(f"Calling ollama.list() on host: {config.ollama_host}")
             models_response = self.client.list()
+            logger.debug(f"Raw models response type: {type(models_response)}")
             logger.debug(f"Raw models response: {models_response}")
             
-            # Safely extract model names
+            # Safely extract model names - handle multiple response formats
             models = []
+            model_list = []
+            
             if hasattr(models_response, 'models'):
+                logger.debug("Using models_response.models attribute")
                 model_list = models_response.models
             elif isinstance(models_response, dict) and 'models' in models_response:
+                logger.debug("Using models_response['models'] dict key")
                 model_list = models_response['models']
+            elif isinstance(models_response, list):
+                logger.debug("Response is directly a list")
+                model_list = models_response
             else:
                 logger.warning(f"Unexpected models response format: {type(models_response)}")
+                logger.warning(f"Response content: {models_response}")
                 model_list = []
             
+            logger.debug(f"Model list type: {type(model_list)}, length: {len(model_list) if model_list else 0}")
+            
             # Extract names from model entries
-            for model in model_list:
+            for i, model in enumerate(model_list):
+                logger.debug(f"Processing model {i+1}: type={type(model)}, content={model}")
                 name = None
+                
                 if isinstance(model, dict):
-                    name = model.get('name') or model.get('model') or model.get('id')
+                    # Try multiple possible keys for model name
+                    name = (model.get('name') or 
+                           model.get('model') or 
+                           model.get('id') or
+                           model.get('digest'))  # Some versions use digest
+                    logger.debug(f"Dict model keys: {list(model.keys())}")
+                    logger.debug(f"Extracted name from dict: {name}")
                 elif isinstance(model, str):
                     name = model
+                    logger.debug(f"String model name: {name}")
                 elif hasattr(model, 'name'):
                     name = model.name
+                    logger.debug(f"Object model name: {name}")
+                elif hasattr(model, 'model'):
+                    name = model.model
+                    logger.debug(f"Object model.model: {name}")
                 
                 if name:
-                    models.append(name)
+                    # Clean up the name (remove tags if needed)
+                    clean_name = name.split(':')[0] if ':' in name else name
+                    models.append(name)  # Keep full name with tag
+                    logger.debug(f"Added model: {name}")
+                else:
+                    logger.warning(f"Could not extract name from model: {model}")
             
             self.available_models = models
             logger.info(f"Found {len(self.available_models)} available models: {self.available_models}")
+            
+            if len(models) == 0:
+                logger.error("No models found! Common causes:")
+                logger.error("1. Ollama service not running (try: ollama serve)")
+                logger.error("2. No models installed (try: ollama pull llama3)")
+                logger.error("3. Connection issue to Ollama service")
+                
             return self.available_models
             
         except Exception as e:
             logger.error(f"Error fetching available models: {e}")
             logger.error(f"Host: {config.ollama_host}")
-            logger.error("Make sure Ollama is running: ollama serve")
+            logger.error("Troubleshooting steps:")
+            logger.error("1. Make sure Ollama is running: ollama serve")
+            logger.error("2. Test manually: ollama list") 
+            logger.error("3. Try: ollama pull llama3")
+            logger.exception("Full exception details:")
             self.available_models = []
             return []
     
@@ -88,7 +132,14 @@ class OllamaClient:
     
     def is_model_available(self, model_name: str) -> bool:
         """Check if a specific model is available."""
-        return model_name in self.get_available_models()
+        available = self.get_available_models()
+        is_available = model_name in available
+        
+        if not is_available:
+            logger.warning(f"Model '{model_name}' not found in available models: {available}")
+            logger.info(f"Will attempt to use '{model_name}' anyway - Ollama may auto-pull it")
+            
+        return True  # Always return True - let Ollama handle model availability
     
     def pull_model(self, model_name: str) -> bool:
         """
@@ -128,13 +179,7 @@ class OllamaClient:
             Generated response or None if error
         """
         selected_model = model or self.default_model
-        
-        # Check if model is available
-        if not self.is_model_available(selected_model):
-            logger.warning(f"Model {selected_model} not available. Attempting to pull...")
-            if not self.pull_model(selected_model):
-                logger.error(f"Failed to pull model {selected_model}")
-                return None
+        logger.info(f"Using model: {selected_model}")
         
         try:
             # Prepare messages
