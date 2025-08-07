@@ -11,7 +11,8 @@
       "Bash(git push:*)",
       "Bash(python test:*)",
       "Bash(rm:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(del debug_excel_reader.py debug_local_ollama.py debug_ollama_connection.py)"
     ],
     "deny": []
   }
