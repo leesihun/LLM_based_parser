@@ -33,8 +33,12 @@ class OllamaClient:
         
         logger.info(f"Initializing Ollama client with host: {ollama_host}")
         
-        # Get available models on initialization
-        self.refresh_available_models()
+        # Try to get available models on initialization, but don't fail if it doesn't work
+        try:
+            self.refresh_available_models()
+        except Exception as e:
+            logger.warning(f"Could not refresh models during initialization: {e}")
+            logger.info("Will proceed anyway - model detection can be retried later")
     
     def refresh_available_models(self) -> List[str]:
         """Get list of available Ollama models from the system."""

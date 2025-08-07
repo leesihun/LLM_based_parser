@@ -55,13 +55,26 @@ def query_mode():
     )
     ollama_client = OllamaClient(config.default_ollama_model)
     
-    # Check available models
-    available_models = ollama_client.get_available_models()
-    if available_models:
-        print(f"📋 Available models: {', '.join(available_models)}")
-        print(f"🤖 Using model: {ollama_client.default_model}\n")
-    else:
-        print("⚠️ No Ollama models found. Please install models using 'ollama pull <model_name>'\n")
+    # Check if we can connect to Ollama and use the configured model
+    try:
+        # Test with a simple model check - don't try to parse complex responses
+        available_models = ollama_client.get_available_models()
+        
+        if available_models and ollama_client.default_model in available_models:
+            print(f"🤖 Using model: {ollama_client.default_model}")
+            print(f"📋 Other available models: {', '.join(available_models)}\n")
+        elif available_models:
+            print(f"⚠️ Configured model '{ollama_client.default_model}' not found")
+            print(f"📋 Available models: {', '.join(available_models)}")
+            print(f"🤖 Will try to use configured model anyway\n")
+        else:
+            # Fall back to just trying to use the configured model
+            print(f"🤖 Using configured model: {ollama_client.default_model}")
+            print("⚠️ Could not list models, but will proceed with configured model\n")
+            
+    except Exception as e:
+        print(f"⚠️ Model detection failed: {e}")
+        print(f"🤖 Will try using configured model: {ollama_client.default_model}\n")
     
     while True:
         try:

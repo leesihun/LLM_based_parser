@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from config.config import config
 import ollama
+from ollama_client import OllamaClient
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -179,6 +180,50 @@ def test_excel_files():
     
     return pos_exists and neg_exists
 
+def test_ollama_client():
+    """Test OllamaClient model detection (used by CLI)."""
+    print("\n🤖 Testing OllamaClient Model Detection")
+    print("=" * 50)
+    
+    try:
+        print(f"Initializing OllamaClient with default model: {config.default_ollama_model}")
+        ollama_client = OllamaClient(config.default_ollama_model)
+        
+        print("Testing get_available_models()...")
+        available_models = ollama_client.get_available_models()
+        
+        if available_models:
+            print(f"✅ Found {len(available_models)} models via OllamaClient:")
+            for i, model in enumerate(available_models, 1):
+                print(f"  {i}. {model}")
+            
+            # Check if the default model is available
+            if config.default_ollama_model in available_models:
+                print(f"✅ Default model '{config.default_ollama_model}' is available")
+            else:
+                print(f"❌ Default model '{config.default_ollama_model}' NOT found in available models")
+                print(f"💡 Available models: {available_models}")
+            
+            return True
+        else:
+            print("❌ No models found via OllamaClient")
+            print("This is the same issue you're seeing in cli.py query")
+            
+            # Compare with direct ollama client
+            print("\n🔍 Comparing with direct ollama client...")
+            direct_client = ollama.Client(host=f"http://{config.ollama_host}", timeout=config.ollama_timeout)
+            direct_response = direct_client.list()
+            print(f"Direct client response type: {type(direct_response)}")
+            print(f"Direct client response: {direct_response}")
+            
+            return False
+            
+    except Exception as e:
+        print(f"❌ OllamaClient test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def test_system_health():
     """Run complete system health check."""
     print("🏥 System Health Check")
@@ -186,6 +231,7 @@ def test_system_health():
     
     print(f"Configuration:")
     print(f"  - Ollama Host: {config.ollama_host}")
+    print(f"  - Default Model: {config.default_ollama_model}")
     print(f"  - Embedding Model: {config.embedding_model}")
     print(f"  - Data Directory: {config.data_dir}")
     print(f"  - Positive File: {config.positive_filename}")
@@ -195,6 +241,7 @@ def test_system_health():
     tests = [
         ("Ollama Connection", lambda: test_ollama_connection()[0]),
         ("Embedding Model", test_embedding_model),
+        ("OllamaClient Detection", test_ollama_client),
         ("Excel Files", test_excel_files)
     ]
     
