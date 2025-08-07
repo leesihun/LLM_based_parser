@@ -4,6 +4,12 @@ import ollama
 import logging
 from typing import List, Dict, Any, Optional
 import json
+import sys
+from pathlib import Path
+
+# Add config to path
+sys.path.append(str(Path(__file__).parent.parent))
+from config.config import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,9 +25,13 @@ class OllamaClient:
         Args:
             default_model: Default model to use if none specified
         """
-        self.client = ollama.Client()
-        self.default_model = default_model or "llama2"  # Default fallback model
+        # Use configured Ollama host
+        ollama_host = f"http://{config.ollama_host}"
+        self.client = ollama.Client(host=ollama_host, timeout=config.ollama_timeout)
+        self.default_model = default_model or config.default_ollama_model
         self.available_models = []
+        
+        logger.info(f"Initializing Ollama client with host: {ollama_host}")
         
         # Get available models on initialization
         self.refresh_available_models()
@@ -30,11 +40,39 @@ class OllamaClient:
         """Get list of available Ollama models from the system."""
         try:
             models_response = self.client.list()
-            self.available_models = [model['name'] for model in models_response['models']]
-            logger.info(f"Found {len(self.available_models)} available models")
+            logger.debug(f"Raw models response: {models_response}")
+            
+            # Safely extract model names
+            models = []
+            if hasattr(models_response, 'models'):
+                model_list = models_response.models
+            elif isinstance(models_response, dict) and 'models' in models_response:
+                model_list = models_response['models']
+            else:
+                logger.warning(f"Unexpected models response format: {type(models_response)}")
+                model_list = []
+            
+            # Extract names from model entries
+            for model in model_list:
+                name = None
+                if isinstance(model, dict):
+                    name = model.get('name') or model.get('model') or model.get('id')
+                elif isinstance(model, str):
+                    name = model
+                elif hasattr(model, 'name'):
+                    name = model.name
+                
+                if name:
+                    models.append(name)
+            
+            self.available_models = models
+            logger.info(f"Found {len(self.available_models)} available models: {self.available_models}")
             return self.available_models
+            
         except Exception as e:
             logger.error(f"Error fetching available models: {e}")
+            logger.error(f"Host: {config.ollama_host}")
+            logger.error("Make sure Ollama is running: ollama serve")
             self.available_models = []
             return []
     
@@ -194,9 +232,26 @@ Please provide a helpful and accurate answer based on the review data provided."
         """Get information about a specific model."""
         try:
             models_response = self.client.list()
-            for model in models_response['models']:
-                if model['name'] == model_name:
-                    return model
+            
+            # Handle different response formats
+            if hasattr(models_response, 'models'):
+                model_list = models_response.models
+            elif isinstance(models_response, dict) and 'models' in models_response:
+                model_list = models_response['models']
+            else:
+                return None
+            
+            # Find the matching model
+            for model in model_list:
+                name = None
+                if isinstance(model, dict):
+                    name = model.get('name') or model.get('model') or model.get('id')
+                elif hasattr(model, 'name'):
+                    name = model.name
+                
+                if name == model_name:
+                    return model if isinstance(model, dict) else {'name': name}
+            
             return None
         except Exception as e:
             logger.error(f"Error getting model info: {e}")
