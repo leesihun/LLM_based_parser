@@ -244,7 +244,7 @@ Please provide a comprehensive answer based on the review context above. If you 
         
         # Get LLM response
         try:
-            llm_response = self.ollama_client.query(prompt)
+            llm_response = self.ollama_client.generate_response(prompt)
             return {
                 'rag_results': rag_results,
                 'llm_response': llm_response,

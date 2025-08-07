@@ -2,6 +2,7 @@
 Query Router Module
 Classifies user queries by type and routes them to appropriate processing modules.
 Supports COUNT, KEYWORD_EXTRACTION, TOPIC_FILTER, and SEMANTIC_SEARCH query types.
+Now includes LLM-based classification for multilingual support.
 """
 
 import logging
@@ -25,8 +26,30 @@ class QueryType(Enum):
 class QueryRouter:
     """Router for classifying and routing different types of user queries."""
     
-    def __init__(self):
-        """Initialize query router with pattern matching rules."""
+    def __init__(self, use_llm: bool = True, ollama_client=None):
+        """
+        Initialize query router.
+        
+        Args:
+            use_llm: Whether to use LLM-based classification (recommended for multilingual)
+            ollama_client: Optional Ollama client for LLM classification
+        """
+        self.use_llm = use_llm
+        
+        if self.use_llm:
+            try:
+                from .llm_query_classifier import LLMQueryClassifier
+                self.llm_classifier = LLMQueryClassifier(ollama_client)
+                logger.info("Initialized with LLM-based classification (multilingual support)")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LLM classifier: {e}")
+                self.use_llm = False
+                self._init_rule_based()
+        else:
+            self._init_rule_based()
+    
+    def _init_rule_based(self):
+        """Initialize rule-based pattern matching (fallback)."""
         
         # Patterns for COUNT queries
         self.count_patterns = [
@@ -97,11 +120,30 @@ class QueryRouter:
             QueryType.COMPARISON: [re.compile(pattern, re.IGNORECASE) for pattern in self.comparison_patterns],
         }
         
-        logger.info("Query router initialized with pattern matching rules")
+        logger.info("Query router initialized with rule-based pattern matching")
     
     def classify_query(self, query: str) -> Dict[str, Any]:
         """
-        Classify a user query and extract relevant parameters.
+        Classify a user query using LLM or rule-based approach.
+        
+        Args:
+            query: User query string in any language
+            
+        Returns:
+            Dictionary containing query type and extracted parameters
+        """
+        if self.use_llm and hasattr(self, 'llm_classifier'):
+            return self._classify_with_llm(query)
+        else:
+            return self._classify_with_rules(query)
+    
+    def _classify_with_llm(self, query: str) -> Dict[str, Any]:
+        """Classify query using LLM (supports multiple languages)."""
+        return self.llm_classifier.classify_query(query)
+    
+    def _classify_with_rules(self, query: str) -> Dict[str, Any]:
+        """
+        Classify a user query using rule-based patterns (English only).
         
         Args:
             query: User query string
