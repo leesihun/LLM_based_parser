@@ -32,6 +32,10 @@ httpx_logger.setLevel(logging.WARNING)
 httpcore_logger = logging.getLogger('httpcore')
 httpcore_logger.setLevel(logging.WARNING)
 
+# Disable ChromaDB telemetry completely to avoid PostHog connection noise
+import os
+os.environ['ANONYMIZED_TELEMETRY'] = 'false'
+
 
 class RAGSystem:
     """Handles document storage, retrieval, and vector embeddings for RAG."""
