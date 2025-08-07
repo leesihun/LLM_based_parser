@@ -1,58 +1,27 @@
 """
 Enhanced Ollama Client for Language Processing
-Extends the original client with language detection, translation, and spell correction.
+Uses the exact reference implementation patterns with extensions.
 """
 import ollama
 import json
 import logging
 from typing import Optional, Dict, Any, List
+from src.ollama_client import OllamaClient
 from config.enhanced_config import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class EnhancedOllamaClient:
+class EnhancedOllamaClient(OllamaClient):
     def __init__(self, default_model: Optional[str] = None):
-        # Create Ollama client with configured host
-        ollama_host = config.get_ollama_url()
-        self.client = ollama.Client(host=ollama_host, timeout=config.ollama_timeout)
-        self.default_model = default_model or config.llm_model
+        # Initialize using exact reference pattern
+        super().__init__(default_model)
         self.embedding_model = config.embedding_model
         
         logger.info(f"Enhanced Ollama Client initialized:")
         logger.info(f"  LLM Model: {self.default_model}")
         logger.info(f"  Embedding Model: {self.embedding_model}")
-        logger.info(f"  Host: {ollama_host}")
-    
-    def generate_response(self, prompt: str, model: Optional[str] = None, 
-                         system_prompt: Optional[str] = None,
-                         temperature: float = None,
-                         max_tokens: int = None) -> Optional[str]:
-        """Standard method for LLM text generation."""
-        try:
-            selected_model = model or self.default_model
-            
-            # Prepare messages in chat format
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            
-            # Get LLM parameters
-            llm_params = config.get_llm_params(temperature, max_tokens)
-            
-            # Call Ollama with chat interface
-            response = self.client.chat(
-                model=selected_model,
-                messages=messages,
-                options=llm_params
-            )
-            
-            return response['message']['content']
-            
-        except Exception as e:
-            logger.error(f"Error in LLM generation: {e}")
-            return None
+        logger.info(f"  Host: http://{config.ollama_host}")
     
     def detect_language(self, text: str) -> Dict[str, Any]:
         """Detect the language of the given text."""
@@ -68,10 +37,12 @@ class EnhancedOllamaClient:
         prompt = f"Detect the language of this text: \"{text[:200]}\""
         
         try:
+            # Use exact reference pattern for LLM call
             response = self.generate_response(
                 prompt=prompt,
                 system_prompt=system_prompt,
-                temperature=0.1
+                temperature=0.1,
+                max_tokens=500
             )
             
             if response:
@@ -83,6 +54,7 @@ class EnhancedOllamaClient:
                     'needs_translation': not detection.get('is_english', False)
                 }
         except Exception as e:
+            # Graceful degradation - exact pattern from reference
             logger.error(f"Error in language detection: {e}")
         
         # Fallback detection
