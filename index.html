@@ -588,11 +588,33 @@
         let currentMode = 'normal';
         let sessionId = null;
         let selectedFileId = null;
-        let userToken = localStorage.getItem('authToken');
+        let userToken = localStorage.getItem('session_token');
         
         // Check authentication on page load
         if (!userToken) {
             window.location.href = 'login.html';
+        } else {
+            // Verify token is still valid
+            fetch('/api/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${userToken}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Invalid token');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('User authenticated:', data.user);
+            })
+            .catch(error => {
+                console.log('Authentication failed:', error);
+                localStorage.removeItem('session_token');
+                localStorage.removeItem('user_data');
+                window.location.href = 'login.html';
+            });
         }
 
         // DOM Elements
