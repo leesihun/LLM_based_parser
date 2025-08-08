@@ -37,16 +37,16 @@ class BrowserSearcher:
             'Upgrade-Insecure-Requests': '1',
         }
         
+        # Set up logging first
+        logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
+        self.logger = logging.getLogger(__name__)
+        
         # Create session for cookie persistence
         self.session = requests.Session()
         self.session.headers.update(self.headers)
         
         # Configure proxy if provided
         self._setup_proxy()
-        
-        # Set up logging
-        logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
-        self.logger = logging.getLogger(__name__)
     
     def _setup_proxy(self):
         """Setup proxy configuration based on config or auto-detection"""
