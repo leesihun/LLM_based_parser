@@ -41,8 +41,51 @@ class BrowserSearcher:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
         
+        # Configure proxy if provided
+        self._setup_proxy()
+        
         # Set up logging
         self.logger = logging.getLogger(__name__)
+    
+    def _setup_proxy(self):
+        """Setup proxy configuration based on config or auto-detection"""
+        proxy_config = self.config.get('proxy', {})
+        
+        if proxy_config.get('enabled', True):  # Default to enabled
+            # Use provided proxy settings or defaults
+            proxy_host = proxy_config.get('host', '168.219.61.252')
+            proxy_port = proxy_config.get('port', 8080)
+            proxy_username = proxy_config.get('username')
+            proxy_password = proxy_config.get('password')
+            
+            # Build proxy URL
+            if proxy_username and proxy_password:
+                proxy_url = f'http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}'
+            else:
+                proxy_url = f'http://{proxy_host}:{proxy_port}'
+            
+            # Set proxy for session
+            self.session.proxies.update({
+                'http': proxy_url,
+                'https': proxy_url
+            })
+            
+            self.logger.info(f"Using proxy: {proxy_host}:{proxy_port}")
+        
+        # Handle NTLM authentication if configured
+        if proxy_config.get('auth_type') == 'ntlm':
+            try:
+                from requests_ntlm import HttpNtlmAuth
+                domain = proxy_config.get('domain', '')
+                username = proxy_config.get('username', '')
+                password = proxy_config.get('password', '')
+                
+                if domain and username:
+                    self.session.auth = HttpNtlmAuth(f'{domain}\\{username}', password)
+                    self.logger.info(f"Using NTLM auth: {domain}\\{username}")
+                    
+            except ImportError:
+                self.logger.warning("NTLM authentication requested but requests_ntlm not available")
         
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, str]]:
         """
