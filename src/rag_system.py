@@ -1,54 +1,241 @@
 #!/usr/bin/env python3
 """
 RAG (Retrieval-Augmented Generation) System
-Uses ChromaDB for vector storage and retrieval with the combined markdown data
+Uses ChromaDB for vector storage with configurable Ollama embedding models
 """
 
 import chromadb
 import logging
+import json
+import requests
+import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 import hashlib
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
-class RAGSystem:
-    """RAG system for document retrieval and context generation"""
+class OllamaEmbeddingFunction:
+    """Custom embedding function that uses Ollama API"""
     
-    def __init__(self, collection_name="documents", persist_directory="./chroma_db"):
+    def __init__(self, model: str, ollama_host: str, batch_size: int = 50):
         """
-        Initialize RAG system
+        Initialize Ollama embedding function
         
         Args:
-            collection_name (str): Name for ChromaDB collection
-            persist_directory (str): Directory to persist ChromaDB data
+            model (str): Ollama embedding model name
+            ollama_host (str): Ollama server host URL
+            batch_size (int): Batch size for embedding requests
         """
-        self.collection_name = collection_name
-        self.persist_directory = persist_directory
+        self.model = model
+        self.ollama_host = ollama_host.rstrip('/')
+        self.batch_size = batch_size
         self.logger = logging.getLogger(__name__)
         
-        # Initialize ChromaDB client
-        self.client = chromadb.PersistentClient(path=persist_directory)
+    def __call__(self, texts: List[str]) -> List[List[float]]:
+        """
+        Generate embeddings for a list of texts
         
-        # Get or create collection
+        Args:
+            texts (List[str]): List of text strings to embed
+            
+        Returns:
+            List[List[float]]: List of embedding vectors
+        """
+        embeddings = []
+        
+        # Process texts in batches
+        for i in range(0, len(texts), self.batch_size):
+            batch = texts[i:i + self.batch_size]
+            batch_embeddings = self._get_batch_embeddings(batch)
+            embeddings.extend(batch_embeddings)
+        
+        return embeddings
+    
+    def _get_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Get embeddings for a batch of texts"""
+        embeddings = []
+        
+        for text in texts:
+            try:
+                embedding = self._get_single_embedding(text)
+                embeddings.append(embedding)
+            except Exception as e:
+                self.logger.error(f"Error getting embedding for text: {str(e)}")
+                # Return zero vector as fallback
+                embeddings.append([0.0] * 768)  # Assuming 768 dimensions for nomic-embed-text
+        
+        return embeddings
+    
+    def _get_single_embedding(self, text: str) -> List[float]:
+        """Get embedding for a single text"""
+        url = f"{self.ollama_host}/api/embeddings"
+        
+        payload = {
+            "model": self.model,
+            "prompt": text
+        }
+        
         try:
-            self.collection = self.client.get_collection(name=collection_name)
+            response = requests.post(
+                url, 
+                json=payload,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            if 'embedding' in result:
+                return result['embedding']
+            else:
+                raise Exception(f"No embedding in response: {result}")
+                
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"Request error for embedding: {str(e)}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Error parsing embedding response: {str(e)}")
+            raise
+
+class RAGSystem:
+    """RAG system for document retrieval and context generation with configurable embedding"""
+    
+    def __init__(self, config_path: str = "config/config.json"):
+        """
+        Initialize RAG system with configuration
+        
+        Args:
+            config_path (str): Path to configuration file
+        """
+        self.logger = logging.getLogger(__name__)
+        
+        # Load configuration
+        self.config = self._load_config(config_path)
+        self.rag_config = self.config.get("rag", {})
+        
+        # Extract configuration values
+        self.embedding_config = self.rag_config.get("embedding", {})
+        self.collection_config = self.rag_config.get("collection", {})
+        self.chunking_config = self.rag_config.get("chunking", {})
+        self.search_config = self.rag_config.get("search", {})
+        self.performance_config = self.rag_config.get("performance", {})
+        
+        # Set up embedding function
+        self.embedding_function = self._create_embedding_function()
+        
+        # Initialize ChromaDB client
+        persist_dir = self.collection_config.get("persist_directory", "./chroma_db")
+        self.client = chromadb.PersistentClient(path=persist_dir)
+        
+        # Get or create collection with custom embedding
+        collection_name = self.collection_config.get("name", "documents")
+        try:
+            self.collection = self.client.get_collection(
+                name=collection_name,
+                embedding_function=self.embedding_function
+            )
             self.logger.info(f"Loaded existing collection: {collection_name}")
         except:
-            self.collection = self.client.create_collection(name=collection_name)
+            self.collection = self.client.create_collection(
+                name=collection_name,
+                embedding_function=self.embedding_function
+            )
             self.logger.info(f"Created new collection: {collection_name}")
     
-    def chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
+    def _load_config(self, config_path: str) -> Dict[str, Any]:
+        """Load configuration from JSON file"""
+        try:
+            with open(config_path, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            self.logger.error(f"Config file {config_path} not found")
+            # Return default config
+            return self._get_default_config()
+        except json.JSONDecodeError:
+            self.logger.error(f"Invalid JSON in config file {config_path}")
+            return self._get_default_config()
+    
+    def _get_default_config(self) -> Dict[str, Any]:
+        """Get default RAG configuration"""
+        return {
+            "rag": {
+                "embedding": {
+                    "provider": "ollama",
+                    "model": "nomic-embed-text:latest",
+                    "ollama_host": "http://localhost:11434",
+                    "dimensions": 768,
+                    "batch_size": 50
+                },
+                "collection": {
+                    "name": "documents",
+                    "persist_directory": "./chroma_db"
+                },
+                "chunking": {
+                    "strategy": "semantic",
+                    "chunk_size": 1000,
+                    "overlap": 200,
+                    "min_chunk_size": 100,
+                    "max_chunk_size": 2000
+                },
+                "search": {
+                    "default_results": 5,
+                    "max_results": 20,
+                    "max_context_length": 3000,
+                    "similarity_threshold": 0.7
+                }
+            }
+        }
+    
+    def _create_embedding_function(self):
+        """Create embedding function based on configuration"""
+        provider = self.embedding_config.get("provider", "ollama")
+        
+        if provider == "ollama":
+            model = self.embedding_config.get("model", "nomic-embed-text:latest")
+            host = self.embedding_config.get("ollama_host", "http://localhost:11434")
+            batch_size = self.embedding_config.get("batch_size", 50)
+            
+            return OllamaEmbeddingFunction(model, host, batch_size)
+        else:
+            self.logger.warning(f"Unknown embedding provider: {provider}, using default")
+            return None  # ChromaDB will use default
+    
+    def check_embedding_model_availability(self) -> bool:
+        """Check if the configured embedding model is available"""
+        try:
+            model = self.embedding_config.get("model", "nomic-embed-text:latest")
+            host = self.embedding_config.get("ollama_host", "http://localhost:11434")
+            
+            # Try to get a test embedding
+            test_embedding = self.embedding_function._get_single_embedding("test")
+            
+            if test_embedding and len(test_embedding) > 0:
+                self.logger.info(f"Embedding model {model} is available and working")
+                return True
+            else:
+                self.logger.error(f"Embedding model {model} returned empty result")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Embedding model availability check failed: {str(e)}")
+            return False
+    
+    def chunk_text(self, text: str) -> List[str]:
         """
-        Split text into overlapping chunks for better retrieval
+        Split text into chunks based on configuration
         
         Args:
             text (str): Text to chunk
-            chunk_size (int): Size of each chunk
-            overlap (int): Overlap between chunks
             
         Returns:
             List[str]: List of text chunks
         """
+        chunk_size = self.chunking_config.get("chunk_size", 1000)
+        overlap = self.chunking_config.get("overlap", 200)
+        min_size = self.chunking_config.get("min_chunk_size", 100)
+        max_size = self.chunking_config.get("max_chunk_size", 2000)
+        
         if len(text) <= chunk_size:
             return [text]
         
@@ -56,9 +243,9 @@ class RAGSystem:
         start = 0
         
         while start < len(text):
-            end = start + chunk_size
+            end = min(start + chunk_size, len(text))
             
-            # Try to find a good breaking point (paragraph, sentence, etc.)
+            # Try to find a good breaking point
             if end < len(text):
                 # Look for paragraph break first
                 para_break = text.rfind('\n\n', start, end)
@@ -76,10 +263,15 @@ class RAGSystem:
                             end = word_break
             
             chunk = text[start:end].strip()
-            if chunk:
+            
+            # Only add chunk if it meets size requirements
+            if chunk and len(chunk) >= min_size:
+                # Truncate if too long
+                if len(chunk) > max_size:
+                    chunk = chunk[:max_size]
                 chunks.append(chunk)
             
-            start = end - overlap
+            start = max(end - overlap, start + 1)  # Prevent infinite loop
         
         return chunks
     
@@ -88,16 +280,7 @@ class RAGSystem:
         return hashlib.md5(content.encode()).hexdigest()
     
     def extract_metadata_from_chunk(self, chunk: str, source_file: str) -> Dict[str, Any]:
-        """
-        Extract metadata from chunk content
-        
-        Args:
-            chunk (str): Text chunk
-            source_file (str): Source file name
-            
-        Returns:
-            Dict: Metadata dictionary
-        """
+        """Extract metadata from chunk content"""
         metadata = {
             "source": source_file,
             "chunk_length": len(chunk),
@@ -174,7 +357,7 @@ class RAGSystem:
                 metadatas.append(metadata)
                 ids.append(chunk_id)
             
-            # Add to collection
+            # Add to collection (embeddings will be generated automatically)
             self.collection.add(
                 documents=documents,
                 metadatas=metadatas,
@@ -182,16 +365,16 @@ class RAGSystem:
             )
             
             self.logger.info(f"Successfully ingested document: {file_path}")
-            print(f"✅ Ingested {file_path} ({len(chunks)} chunks)")
+            print(f"OK: Ingested {file_path} ({len(chunks)} chunks)")
             
             return True
             
         except Exception as e:
             self.logger.error(f"Error ingesting document {file_path}: {str(e)}")
-            print(f"❌ Error ingesting {file_path}: {str(e)}")
+            print(f"ERROR: Error ingesting {file_path}: {str(e)}")
             return False
     
-    def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+    def search(self, query: str, n_results: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Search for relevant documents using query
         
@@ -202,6 +385,12 @@ class RAGSystem:
         Returns:
             List[Dict]: Search results with content and metadata
         """
+        if n_results is None:
+            n_results = self.search_config.get("default_results", 5)
+        
+        max_results = self.search_config.get("max_results", 20)
+        n_results = min(n_results, max_results)
+        
         try:
             results = self.collection.query(
                 query_texts=[query],
@@ -226,7 +415,7 @@ class RAGSystem:
             self.logger.error(f"Error searching: {str(e)}")
             return []
     
-    def get_context_for_query(self, query: str, max_context_length: int = 3000) -> str:
+    def get_context_for_query(self, query: str, max_context_length: Optional[int] = None) -> str:
         """
         Get relevant context for a query, formatted for LLM consumption
         
@@ -237,6 +426,9 @@ class RAGSystem:
         Returns:
             str: Formatted context string
         """
+        if max_context_length is None:
+            max_context_length = self.search_config.get("max_context_length", 3000)
+        
         results = self.search(query, n_results=10)
         
         if not results:
@@ -276,8 +468,10 @@ class RAGSystem:
             count = self.collection.count()
             return {
                 "document_count": count,
-                "collection_name": self.collection_name,
-                "persist_directory": self.persist_directory
+                "collection_name": self.collection_config.get("name", "documents"),
+                "persist_directory": self.collection_config.get("persist_directory", "./chroma_db"),
+                "embedding_model": self.embedding_config.get("model", "nomic-embed-text:latest"),
+                "embedding_provider": self.embedding_config.get("provider", "ollama")
             }
         except Exception as e:
             self.logger.error(f"Error getting stats: {str(e)}")
@@ -286,9 +480,13 @@ class RAGSystem:
     def clear_collection(self) -> bool:
         """Clear all documents from collection"""
         try:
+            collection_name = self.collection_config.get("name", "documents")
             # Delete the collection and recreate it
-            self.client.delete_collection(name=self.collection_name)
-            self.collection = self.client.create_collection(name=self.collection_name)
+            self.client.delete_collection(name=collection_name)
+            self.collection = self.client.create_collection(
+                name=collection_name,
+                embedding_function=self.embedding_function
+            )
             self.logger.info("Collection cleared successfully")
             return True
         except Exception as e:
@@ -300,8 +498,13 @@ def main():
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     
-    # Initialize RAG system
+    # Initialize RAG system with config
     rag = RAGSystem()
+    
+    # Check embedding model availability
+    if not rag.check_embedding_model_availability():
+        print("ERROR: Embedding model not available. Please ensure nomic-embed-text:latest is installed in Ollama")
+        return
     
     # Check if combined_data.md exists
     if Path("combined_data.md").exists():
@@ -322,6 +525,7 @@ def main():
                 print(f"\nResult {i+1}:")
                 print(f"Content: {result['content'][:200]}...")
                 print(f"Metadata: {result['metadata']}")
+                print(f"Distance: {result['distance']}")
         
     else:
         print("combined_data.md not found. Please run excel_to_md_converter.py first.")

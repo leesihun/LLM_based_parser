@@ -11,5 +11,36 @@
   "ui": {
     "title": "HE team LLM assistant",
     "theme": "dark"
+  },
+  "rag": {
+    "embedding": {
+      "provider": "ollama",
+      "model": "nomic-embed-text:latest",
+      "ollama_host": "http://localhost:11434",
+      "dimensions": 768,
+      "batch_size": 50
+    },
+    "collection": {
+      "name": "documents",
+      "persist_directory": "./chroma_db"
+    },
+    "chunking": {
+      "strategy": "semantic",
+      "chunk_size": 1000,
+      "overlap": 200,
+      "min_chunk_size": 100,
+      "max_chunk_size": 2000
+    },
+    "search": {
+      "default_results": 5,
+      "max_results": 20,
+      "max_context_length": 3000,
+      "similarity_threshold": 0.7
+    },
+    "performance": {
+      "enable_caching": true,
+      "cache_size": 1000,
+      "parallel_processing": true
+    }
   }
 }

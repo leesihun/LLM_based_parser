@@ -107,11 +107,16 @@ def verify_system():
     if DEPENDENCIES_AVAILABLE:
         try:
             rag = RAGSystem()
+            # Check embedding model availability
+            embedding_available = rag.check_embedding_model_availability()
             stats = rag.get_collection_stats()
+            checks.append(("RAG embedding model", embedding_available))
             checks.append(("RAG system", stats.get('document_count', 0) > 0))
         except Exception as e:
+            checks.append(("RAG embedding model", False))
             checks.append(("RAG system", False))
     else:
+        checks.append(("RAG embedding model", False))
         checks.append(("RAG system", False))
     
     # Check required directories
@@ -164,8 +169,25 @@ def main():
     print("\n" + "=" * 50)
     print("Setup completed! Next steps:")
     print("1. Install requirements: pip install -r requirements.txt")
-    print("2. Start the server: python server.py")
-    print("3. Open enhanced UI: http://localhost:3000")
+    if DEPENDENCIES_AVAILABLE:
+        # Check if we need to install embedding model
+        try:
+            rag = RAGSystem()
+            if not rag.check_embedding_model_availability():
+                print("2. Install embedding model: ollama pull nomic-embed-text:latest")
+                print("3. Start the server: python server.py")
+                print("4. Open enhanced UI: http://localhost:3000")
+            else:
+                print("2. Start the server: python server.py")
+                print("3. Open enhanced UI: http://localhost:3000")
+        except:
+            print("2. Install embedding model: ollama pull nomic-embed-text:latest")
+            print("3. Start the server: python server.py")
+            print("4. Open enhanced UI: http://localhost:3000")
+    else:
+        print("2. Install embedding model: ollama pull nomic-embed-text:latest")
+        print("3. Start the server: python server.py")
+        print("4. Open enhanced UI: http://localhost:3000")
     print("=" * 50)
 
 if __name__ == "__main__":

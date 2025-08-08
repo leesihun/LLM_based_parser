@@ -23,7 +23,7 @@ app.secret_key = 'he_team_llm_assistant_secret_key'  # Change this in production
 llm_client = LLMClient()
 memory = ConversationMemory()
 user_manager = UserManager()
-rag_system = RAGSystem()
+rag_system = RAGSystem("config/config.json")  # Pass config path
 file_handler = FileHandler()
 
 def require_auth(f):
