@@ -155,8 +155,12 @@ class WebSearcher:
             api_key = self.config.get('google_api_key')
             search_engine_id = self.config.get('google_search_engine_id')
             
-            if not api_key or not search_engine_id:
-                self.logger.warning("Google Custom Search requires API key and search engine ID")
+            if not api_key:
+                self.logger.warning("Google Custom Search requires API key")
+                return []
+            
+            if not search_engine_id:
+                self.logger.warning("Google Custom Search requires search engine ID - see setup instructions")
                 return []
             
             search_url = "https://www.googleapis.com/customsearch/v1"
@@ -164,13 +168,28 @@ class WebSearcher:
                 'key': api_key,
                 'cx': search_engine_id,
                 'q': query,
-                'num': min(max_results, 10)  # Google allows max 10 per request
+                'num': min(max_results, 10),  # Google allows max 10 per request
+                'safe': 'medium',  # Safe search
+                'lr': 'lang_en'    # English results
             }
             
             response = self.session.get(search_url, params=params, timeout=self.timeout)
             
             if response.status_code == 200:
-                return self._parse_google_results(response.json(), max_results)
+                data = response.json()
+                results = self._parse_google_results(data, max_results)
+                
+                if results:
+                    self.logger.info(f"Google Custom Search returned {len(results)} results")
+                    return results
+                else:
+                    self.logger.warning("Google Custom Search returned no results")
+                    return []
+            else:
+                error_data = response.json() if response.content else {}
+                error_msg = error_data.get('error', {}).get('message', f'HTTP {response.status_code}')
+                self.logger.error(f"Google Custom Search API error: {error_msg}")
+                return []
                 
         except Exception as e:
             self.logger.error(f"Google Custom Search error: {str(e)}")

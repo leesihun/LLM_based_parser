@@ -18,7 +18,10 @@ from core.conversation_memory import ConversationMemory
 from core.user_management import UserManager
 from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
-from src.web_search import WebSearcher
+try:
+    from src.web_search_improved import ImprovedWebSearcher as WebSearcher
+except ImportError:
+    from src.web_search import WebSearcher
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
