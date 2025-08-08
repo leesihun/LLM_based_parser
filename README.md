@@ -1,262 +1,440 @@
-# LLM-based Review Parser - Usage Guide
+# HE Team LLM Assistant
 
-A complete system for processing cellphone reviews from Excel files using local LLM models via Ollama.
+A complete multi-user, offline-capable local LLM system using Ollama with secure authentication and per-user data storage.
 
-## 🚀 Quick Start Guide
+## Features
 
-### Step 1: Prerequisites
+- **🔐 Multi-User Authentication**: Secure login system with role-based access control
+- **👥 Per-User Data**: Each user has private conversation history and settings
+- **🌐 Offline Operation**: Runs completely offline with local Ollama models
+- **💻 Modern Web Interface**: Professional dark-themed chat interface
+- **🔧 REST API**: Backend API for integration with other applications
+- **⚙️ Configurable**: JSON-based configuration for all settings
+- **🏗️ Modular Design**: Separate client, server, and frontend components
+- **🤖 Model Management**: List and switch between available Ollama models
+- **🌍 Network Access**: Configurable to allow local network connections
+- **👨‍💼 Admin Panel**: User management and system administration
 
-**Install Ollama:**
-1. Download and install Ollama from [https://ollama.ai](https://ollama.ai)
-2. Start Ollama service (it should run on `localhost:11434`)
+## Prerequisites
 
-**Download Required Models:**
+- Python 3.7+
+- [Ollama](https://ollama.ai/) installed and running
+- At least one Ollama model pulled (e.g., `ollama pull llama3.2`)
+
+## Quick Start
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/leesihun/LLM_backbone.git
+   cd LLM_backbone
+   ```
+
+2. **Start the system**
+   ```bash
+   python start.py
+   ```
+
+3. **Access the login page**
+   - **Local access**: `http://localhost:8000/login.html`
+   - **Network access**: `http://YOUR_IP_ADDRESS:8000/login.html`
+
+4. **Default login credentials**
+   - **Username**: `admin`
+   - **Password**: `admin123`
+   - **⚠️ Change password immediately after first login!**
+
+5. **Start chatting**
+   - After login, you'll be redirected to the main chat interface
+   - Your conversations are automatically saved per user
+
+## Configuration
+
+Edit `config.json` to customize settings:
+
+```json
+{
+  "ollama": {
+    "host": "http://localhost:11434",
+    "model": "llama3.2",
+    "timeout": 30000
+  },
+  "server": {
+    "port": 8000,
+    "host": "0.0.0.0"
+  },
+  "ui": {
+    "title": "HE Team LLM Assistant",
+    "theme": "dark"
+  }
+}
+```
+
+## Architecture
+
+### Core Components
+
+- **`user_management.py`** - User authentication and session management
+- **`conversation_memory.py`** - Per-user conversation storage and memory
+- **`llm_client.py`** - Main LLM interface and communication with Ollama
+- **`server.py`** - Flask REST API backend with authentication
+- **`index.html`** - Main chat interface (requires authentication)
+- **`login.html`** - User login page
+- **`config.json`** - System configuration settings
+- **`start.py`** - Easy startup script
+
+### API Endpoints
+
+#### Authentication
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/me` - Get current user info
+- `POST /api/auth/change-password` - Change user password
+
+#### Chat & Conversations (Authenticated)
+- `POST /api/chat` - Chat completion with conversation memory
+- `GET /api/conversations` - List user's conversations
+- `GET /api/conversations/<id>/history` - Get conversation history
+- `DELETE /api/conversations/<id>` - Delete conversation
+- `POST /api/conversations/clear` - Clear all user conversations
+
+#### System
+- `GET /api/models` - List available Ollama models
+- `GET /api/config` - Get current configuration
+- `GET /health` - Health check endpoint
+
+#### Admin Only
+- `GET /api/admin/users` - List all users
+- `POST /api/admin/users` - Create new user
+- `PUT /api/admin/users/<username>` - Update user
+- `DELETE /api/admin/users/<username>` - Delete user
+- `POST /api/admin/users/<username>/reset-password` - Reset user password
+- `GET /api/admin/sessions` - List active sessions
+- `GET /api/admin/stats` - System statistics
+
+## Usage Examples
+
+### Web Interface
+1. Run `python start.py`
+2. Open `http://localhost:8000/login.html`
+3. Login with default credentials (admin/admin123)
+4. Start chatting with your AI assistant
+
+### Command Line (Direct LLM)
 ```bash
-ollama pull gemma3:12b
-ollama pull nomic-embed-text:latest
+python llm_client.py "What is the capital of France?"
 ```
 
-**Install Python Dependencies:**
-```bash
-pip install pandas openpyxl ollama
-```
-
-### Step 2: Prepare Your Data
-
-1. Place your Excel files (`.xlsx`) in the `data/` folder
-2. Files should contain reviews in columns (like your current `폴드긍정.xlsx` and `폴드부정.xlsx`)
-3. The system automatically detects sentiment from filenames:
-   - Files with "긍정" or "positive" → positive reviews
-   - Files with "부정" or "negative" → negative reviews
-
-### Step 3: Run the System
-
-**Complete Processing Pipeline:**
-```bash
-python enhanced_main.py --mode pipeline
-```
-
-This will:
-- Read all Excel files from `data/` folder
-- Detect languages (Korean, English, etc.)
-- Translate non-English reviews to English
-- Correct spelling errors
-- Generate a consolidated markdown file
-- Set up the query system
-
-**Expected Output:**
-```
-✅ Pipeline completed successfully!
-📄 Markdown file: output/consolidated_reviews_20250807_143022.md
-📊 Total reviews: 200
-⏱️  Processing time: 45.23s
-📈 Sentiment distribution: {'positive': 100, 'negative': 100}
-```
-
-### Step 4: Ask Questions
-
-After the pipeline completes, you can ask questions:
-
-```bash
-python enhanced_main.py --mode query --question "How many responses are good and how many are bad?"
-```
-
-```bash
-python enhanced_main.py --mode query --question "What keyword is used most often? Semantically analyze it."
-```
-
-```bash
-python enhanced_main.py --mode query --question "Give me an example of good review regarding screen size."
-```
-
-## 📋 Supported Question Types
-
-The system is specifically designed to handle these question types:
-
-### 1. Count Analysis
-- "How many responses are good and how many are bad?"
-- "What's the ratio of positive to negative reviews?"
-
-### 2. Keyword Analysis
-- "What keyword is used most often? How many times was it mentioned?"
-- "What are the most common words in positive reviews?"
-- "Semantically analyze the review keywords"
-
-### 3. Example Requests
-- "Give me an example of good review regarding screen size"
-- "Give me an example of bad review regarding screen time"
-- "Show me a positive review about battery life"
-- "Find a negative review about camera quality"
-
-### 4. General Analysis
-- "What are the main complaints in negative reviews?"
-- "What do users like most about the phone?"
-- "Analyze the sentiment patterns in the reviews"
-
-## ⚙️ Configuration Options
-
-### Environment Variables
-```bash
-export LLM_MODEL="gemma3:12b"                    # Main LLM model
-export EMBEDDING_MODEL="nomic-embed-text:latest" # Embedding model
-export OLLAMA_HOST="localhost:11434"             # Ollama service address
-export DEFAULT_TEMPERATURE="0.4"                 # Response creativity (0.0-1.0)
-export MAX_TOKENS="10000"                        # Maximum response length
-export DATA_DIRECTORY="data"                     # Input folder
-export OUTPUT_DIRECTORY="output"                 # Output folder
-```
-
-### Config File
-Edit `config/enhanced_config.py` to customize settings:
-
+### API Integration (Authenticated)
 ```python
-# Model settings
-self.llm_model = "gemma3:12b"
-self.embedding_model = "nomic-embed-text:latest"
+import requests
 
-# Processing settings
-self.default_temperature = 0.4
-self.translation_temperature = 0.3
-self.batch_size = 10
+# Login first
+login_response = requests.post('http://localhost:8000/api/auth/login', json={
+    'username': 'admin',
+    'password': 'admin123'
+})
+token = login_response.json()['session_token']
+
+# Chat with authentication
+headers = {'Authorization': f'Bearer {token}'}
+response = requests.post('http://localhost:8000/api/chat', 
+    headers=headers,
+    json={'message': 'Hello, AI!'})
+print(response.json()['response'])
+
+# List user's conversations
+conversations = requests.get('http://localhost:8000/api/conversations', headers=headers)
+print(conversations.json())
 ```
 
-## 📁 File Structure
+## User Management
 
+### Default Admin Account
+- **Username**: `admin`
+- **Password**: `admin123`
+- **Role**: Administrator
+- **⚠️ IMPORTANT**: Change the default password immediately after first login!
+
+### Managing Users
+
+#### Where to Configure Users & Passwords
+
+**1. Programmatically via Admin API:**
+```python
+import requests
+
+# Login as admin first
+admin_login = requests.post('http://localhost:8000/api/auth/login', json={
+    'username': 'admin',
+    'password': 'admin123'
+})
+admin_token = admin_login.json()['session_token']
+admin_headers = {'Authorization': f'Bearer {admin_token}'}
+
+# Create new user
+new_user = requests.post('http://localhost:8000/api/admin/users',
+    headers=admin_headers,
+    json={
+        'username': 'john_doe',
+        'password': 'secure_password123',
+        'email': 'john@company.com',
+        'role': 'user',
+        'display_name': 'John Doe'
+    })
+
+# Reset user password
+reset_pw = requests.post('http://localhost:8000/api/admin/users/john_doe/reset-password',
+    headers=admin_headers,
+    json={'new_password': 'new_secure_password123'})
+
+# List all users
+users = requests.get('http://localhost:8000/api/admin/users', headers=admin_headers)
+print(users.json())
 ```
-LLM_based_parser/
-├── enhanced_main.py              # Main program
-├── config/
-│   └── enhanced_config.py        # Configuration settings
-├── src/
-│   ├── enhanced_excel_reader.py  # Excel file processor
-│   ├── enhanced_ollama_client.py # LLM communication
-│   ├── markdown_generator.py     # Output file creator
-│   └── enhanced_query_engine.py  # Question answering
-├── data/                         # Your Excel files go here
-│   ├── 폴드긍정.xlsx
-│   └── 폴드부정.xlsx
-├── output/                       # Generated files appear here
-└── README.md
+
+**2. Direct File Configuration:**
+
+Users are stored in `users.json` (created automatically):
+```json
+{
+  "admin": {
+    "user_id": "uuid-here",
+    "username": "admin",
+    "email": "admin@heteam.com",
+    "password_hash": "hashed-password",
+    "salt": "random-salt",
+    "role": "admin",
+    "display_name": "Administrator",
+    "created_at": "2025-01-01T00:00:00",
+    "is_active": true
+  }
+}
 ```
 
-## 🔍 Understanding the Output
+**3. Change Default Admin Password:**
+```python
+# Method 1: Via API
+import requests
+headers = {'Authorization': f'Bearer {your_admin_token}'}
+requests.post('http://localhost:8000/api/auth/change-password',
+    headers=headers,
+    json={
+        'old_password': 'admin123',
+        'new_password': 'your_new_secure_password'
+    })
 
-The system generates a comprehensive markdown file in the `output/` folder:
+# Method 2: Admin reset (if you forget password, delete users.json and restart)
+```
 
-**Sections include:**
-- **Dataset Statistics**: Count of reviews by sentiment, language, source file
-- **Keyword Analysis**: Most frequent words in positive/negative reviews
-- **Review Collection**: All processed reviews with metadata
-  - Original text (if non-English)
-  - English translation
-  - Language detection results
-  - Topic tags (screen, battery, camera, etc.)
-  - Sentiment classification
+**4. Command Line Tool:**
 
-## 💡 Usage Examples
-
-### Basic Workflow
+Use `manage_users.py` for easy user management:
 ```bash
-# 1. Process all Excel files
-python enhanced_main.py --mode pipeline
+# List all users
+python manage_users.py list
 
-# 2. Ask questions about the data
-python enhanced_main.py --mode query --question "How many good vs bad reviews?"
+# Create new user
+python manage_users.py create john_doe john@company.com --role user --display-name "John Doe"
 
-# 3. Get specific examples
-python enhanced_main.py --mode query --question "Show me a bad review about battery"
+# Reset user password
+python manage_users.py reset-password john_doe
+
+# Change user password (requires current password)
+python manage_users.py change-password john_doe
+
+# Deactivate user (keeps data but prevents login)
+python manage_users.py deactivate john_doe
+
+# Delete user completely
+python manage_users.py delete john_doe
+
+# View user statistics
+python manage_users.py stats
 ```
 
-### Test Mode
+### User Roles
+
+**Admin Users:**
+- Can create, modify, and delete other users
+- Can reset passwords for any user
+- Can view system statistics and all active sessions
+- Full access to all admin endpoints
+
+**Regular Users:**
+- Can chat with AI assistant
+- Can manage their own conversations
+- Can change their own password
+- Cannot access admin functions
+
+### Data Storage Structure
+
+```
+project_root/
+├── users.json              # User accounts and credentials
+├── user_sessions.json      # Active user sessions
+└── conversations/          # Per-user conversation storage
+    ├── user-id-1/          # User 1's conversations
+    │   ├── session-1.json
+    │   └── session-2.json
+    └── user-id-2/          # User 2's conversations
+        ├── session-1.json
+        └── session-2.json
+```
+
+## File Structure
+
+```
+LLM_backbone/
+├── README.md                 # This file
+├── CLAUDE.md                # Development instructions
+├── config.json              # System configuration
+├── requirements.txt         # Python dependencies
+├── start.py                # Easy startup script
+├── user_management.py       # User authentication system
+├── conversation_memory.py   # Per-user conversation storage
+├── llm_client.py           # Core LLM client
+├── server.py               # Flask API server with auth
+├── index.html              # Main chat interface
+├── login.html              # User login page
+├── users.json              # User accounts (auto-generated)
+├── user_sessions.json      # Active sessions (auto-generated)
+└── conversations/          # Per-user conversation data
+    ├── user-id-1/
+    └── user-id-2/
+```
+
+## Installation Details
+
+### Manual Installation
 ```bash
-# Run all sample questions automatically
-python enhanced_main.py --mode test
+pip install -r requirements.txt
+python server.py
 ```
 
-### Custom Questions
-```bash
-python enhanced_main.py --mode query --question "What are users saying about the folding mechanism?"
+### Dependencies
+- `flask==2.3.3` - Web framework
+- `flask-cors==4.0.0` - CORS support  
+- `requests==2.31.0` - HTTP client
 
-python enhanced_main.py --mode query --question "Compare positive and negative sentiment patterns"
+## Network Access
 
-python enhanced_main.py --mode query --question "Find reviews mentioning durability issues"
-```
+### Allowing Others to Connect
 
-## 🛠️ Troubleshooting
+The server is configured to accept connections from other devices on your network:
+
+1. **Find your IP address**
+   ```bash
+   # Windows
+   ipconfig
+   
+   # Linux/Mac
+   ifconfig
+   ```
+
+2. **Share the URL with others**
+   - Format: `http://YOUR_IP_ADDRESS:3000`
+   - Example: `http://192.168.1.100:3000`
+
+3. **Firewall Configuration**
+   - **Windows**: Allow Python through Windows Defender Firewall
+   - **Mac**: System Preferences > Security & Privacy > Firewall
+   - **Linux**: Configure iptables or ufw as needed
+
+4. **Network Requirements**
+   - All users must be on the same network (WiFi/LAN)
+   - Router must allow internal network communication
+   - No VPN conflicts
+
+### Security Considerations
+
+🔒 **Multi-User Security Features:**
+
+- **User Authentication**: Secure login system with session tokens
+- **Password Hashing**: PBKDF2 with salt for password security
+- **Session Management**: 24-hour session timeout with token validation
+- **Role-Based Access**: Admin and user roles with different permissions
+- **Data Isolation**: Users can only access their own conversations
+- **API Protection**: All endpoints require valid authentication
+
+⚠️ **Network Security:**
+
+- **HTTPS Recommended**: Use reverse proxy (nginx) with SSL for production
+- **Firewall Configuration**: Only allow trusted IPs for network access
+- **VPN Access**: Consider VPN for remote access to maintain security
+- **Change Default Credentials**: Immediately change admin password from default
+
+## Troubleshooting
 
 ### Common Issues
 
-**1. "Connection refused" error**
-- Make sure Ollama is running: check `http://localhost:11434` in browser
-- Restart Ollama service if needed
+**Ollama Connection Error**
+- Ensure Ollama is running: `ollama serve`
+- Check Ollama URL in `config.json`
+- Verify firewall settings
 
-**2. "Model not found" error**
-```bash
-ollama pull gemma3:12b
-ollama pull nomic-embed-text:latest
-```
+**No Models Available**
+- Pull a model: `ollama pull llama3.2`
+- Check available models: `ollama list`
 
-**3. "No reviews found" error**
-- Check that Excel files are in the `data/` folder
-- Verify Excel files contain data (not empty)
-- Check file permissions
+**Port Already in Use**
+- Change port in `config.json` (default: 8000)
+- Kill existing process: `netstat -ano | findstr :8000`
 
-**4. Slow processing**
-- Reduce batch size in config: `self.batch_size = 5`
-- Use smaller model if needed: `self.llm_model = "gemma:7b"`
+**Login Issues**
+- Verify default credentials: admin/admin123
+- Check `users.json` file exists and is readable
+- Clear browser cache and cookies
+- Ensure JavaScript is enabled
 
-### Performance Tips
+**Authentication Errors**
+- Check session token hasn't expired (24-hour timeout)
+- Verify API requests include Authorization header
+- Ensure user account is active (`is_active: true`)
 
-- **Large datasets**: Processing 200+ reviews may take 5-10 minutes
-- **Memory usage**: Monitor system resources during processing
-- **Model switching**: You can use different models by changing config
-- **Parallel processing**: System processes reviews in batches for efficiency
+**Can't Create Users**
+- Ensure you're logged in as admin
+- Check username/email aren't already taken
+- Verify password meets minimum requirements (6+ characters)
 
-## 🔧 Advanced Usage
+**Permission Errors**
+- Run as administrator (Windows)
+- Check file permissions (Linux/Mac)
 
-### Using Specific Markdown File
-```bash
-python enhanced_main.py --mode query --markdown "output/my_reviews.md" --question "Your question"
-```
+## Development
 
-### Custom Processing
-```python
-from enhanced_main import EnhancedPipeline
+### Adding New Features
+1. Modify `llm_client.py` for new LLM functionality
+2. Add API endpoints in `server.py`  
+3. Update frontend in `index.html`
+4. Test with different Ollama models
 
-pipeline = EnhancedPipeline()
-result = pipeline.run_complete_pipeline()
+### Custom Models
+- Pull any Ollama-compatible model
+- Update `config.json` with model name
+- Restart the server
 
-# Ask multiple questions
-questions = [
-    "How many good vs bad reviews?",
-    "What's the most mentioned keyword?",
-    "Show me a screen size example"
-]
+## Security Notes
 
-for q in questions:
-    answer = pipeline.query_engine.query(q)
-    print(f"Q: {q}")
-    print(f"A: {answer['answer']}")
-    print("---")
-```
+- System runs on localhost by default
+- No authentication implemented
+- Intended for local development use
+- Configure firewall for network access
 
-## 📊 Output Files
+## License
 
-After running the pipeline, you'll find:
+MIT License - feel free to use and modify as needed.
 
-1. **`consolidated_reviews_[timestamp].md`** - Main dataset file with all processed reviews
-2. **`processing_log.json`** - Processing statistics and metadata
-3. **Log files** - Detailed processing logs in console
+## Contributing
 
-The markdown file is specifically formatted for LLM analysis and contains all the information needed to answer your questions accurately.
+1. Fork the repository
+2. Create feature branch
+3. Make changes
+4. Test thoroughly  
+5. Submit pull request
 
-## ❓ Getting Help
+## Support
 
-If you encounter issues:
-
-1. Check the console output for error messages
-2. Verify Ollama is running and models are available
-3. Ensure Excel files are properly formatted
-4. Check the `processing_log.json` for detailed information
-
-The system is designed to be robust and provide helpful error messages to guide you through any issues.
+For issues and questions:
+- Check troubleshooting section
+- Review Ollama documentation
+- Open GitHub issue with details

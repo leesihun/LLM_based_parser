@@ -2,26 +2,30 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important notice.
+
+- THis codebase is intended to be used elsewhere, not this computer
+- Don't test ollama functionality ever.
+- Always build modular script with comments to show what funtionality is what.
+- Forget everything previously mentioned, including the gits
+- LLM backbone is provided here. Based on this, build features.
+- Organize all files. ex. source files in /src, authorizations in /auth folder, etc.
+
 ## Repository Overview
 
-This is an LLM-based query analysis system for cellphone reviews, built around Ollama for local LLM inference. The system processes Korean and English Excel files containing positive/negative review data and provides semantic search, keyword extraction, and statistical analysis capabilities.
+Upon the provided backbone code, add the following features.
+ - setup a new .py file for each features and changes to the existing codes must be minimal
 
-For the embedding, I'm using nomic-embed-text:latest and for the modle, gemma3:12b.
-The configuraionts must be configurable via a seperate script.
+### Setup preparation
+1. First gather all of the .xlsx files in data and combine them to a big .md file
+2. Read the .md file and setup a RAG system using chromadb
 
-First, read all of .xlsx files and make a big .md file containing all of the responses.
-If some of columns are empty, don't change it.
-Use keywords identifying language type, and pros and cons for easy identification.
-Translate to enlgish if other language is used and correct the misspelled responses.
+### LLM serve
+- For the followings, add buttons to enable such features to the webui.
+1. Add capability to RAG using the RAG system set up previously.
+2. Add capability to 'READ' the .md file provided.
 
-BAsed on the big .md file, the LLM will be ased questions such as 
-1. How many responses are good and how many are bad?
-2. What keyword is used most often? and how many times has it been mentioned? Semantically analyze it.
-3. Give me an example of good review regarding screen size.
-4. Give me an example of bad review regarding screen time.
 
-The LLM must be able to answer these questions.
-
-Plan before coding and check with me
-
-The code you have created will be used on another computer locally. So don't test anything!!
+### System settings
+- Add capabilty to upload files to the LLM.
+- The LLM should be capable of 'READING' the filie.

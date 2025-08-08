@@ -1,0 +1,15 @@
+{
+  "ollama": {
+    "host": "http://localhost:11434",
+    "model": "gemma3:12b",
+    "timeout": 30000
+  },
+  "server": {
+    "port": 8000,
+    "host": "0.0.0.0"
+  },
+  "ui": {
+    "title": "HE team LLM assistant",
+    "theme": "dark"
+  }
+}
