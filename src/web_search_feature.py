@@ -9,11 +9,11 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-# Import the browser search system
+# Import search systems
 try:
-    from .browser_search import BrowserSearcher
+    from .selenium_search import SeleniumSearcher
 except ImportError:
-    from browser_search import BrowserSearcher
+    from selenium_search import SeleniumSearcher
 
 
 class WebSearchFeature:
@@ -22,13 +22,13 @@ class WebSearchFeature:
     def __init__(self, config: Optional[Dict] = None):
         """Initialize web search feature"""
         self.config = config or {}
-        self.searcher = BrowserSearcher(config)
+        self.searcher = SeleniumSearcher(config)
         self.enabled = True
         self.search_history = []
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Web Search Feature initialized")
+        self.logger.info("Selenium Search Feature initialized")
     
     def search_web(self, query: str, max_results: Optional[int] = None, 
                    format_for_llm: bool = True) -> Dict[str, Any]:
