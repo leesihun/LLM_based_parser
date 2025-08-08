@@ -45,6 +45,7 @@ class BrowserSearcher:
         self._setup_proxy()
         
         # Set up logging
+        logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
     
     def _setup_proxy(self):
