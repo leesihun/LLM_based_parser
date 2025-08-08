@@ -21,7 +21,17 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
-class OllamaEmbeddingFunction:
+# Try to import ChromaDB types, fallback if not available
+try:
+    from chromadb.api.types import EmbeddingFunction, Embeddings
+    CHROMADB_TYPES_AVAILABLE = True
+except ImportError:
+    # Fallback for older ChromaDB versions
+    EmbeddingFunction = object
+    Embeddings = List[List[float]]
+    CHROMADB_TYPES_AVAILABLE = False
+
+class OllamaEmbeddingFunction(EmbeddingFunction):
     """Custom embedding function that uses Ollama API"""
     
     def __init__(self, model: str, ollama_host: str, batch_size: int = 50):
@@ -38,21 +48,21 @@ class OllamaEmbeddingFunction:
         self.batch_size = batch_size
         self.logger = logging.getLogger(__name__)
         
-    def __call__(self, texts: List[str]) -> List[List[float]]:
+    def __call__(self, input: List[str]) -> Embeddings:
         """
-        Generate embeddings for a list of texts
+        Generate embeddings for a list of texts (ChromaDB compatible signature)
         
         Args:
-            texts (List[str]): List of text strings to embed
+            input (List[str]): List of text strings to embed
             
         Returns:
-            List[List[float]]: List of embedding vectors
+            Embeddings: List of embedding vectors in ChromaDB format
         """
         embeddings = []
         
         # Process texts in batches
-        for i in range(0, len(texts), self.batch_size):
-            batch = texts[i:i + self.batch_size]
+        for i in range(0, len(input), self.batch_size):
+            batch = input[i:i + self.batch_size]
             batch_embeddings = self._get_batch_embeddings(batch)
             embeddings.extend(batch_embeddings)
         
@@ -160,8 +170,21 @@ class RAGSystem:
                 )
                 self.logger.info(f"Created new collection: {collection_name}")
             except Exception as create_error:
-                self.logger.error(f"Failed to create collection {collection_name}: {str(create_error)}")
-                raise
+                error_msg = str(create_error)
+                if "signature" in error_msg or "__call__" in error_msg:
+                    detailed_error = f"""
+ChromaDB Embedding Function Signature Error:
+- Error: {error_msg}
+- This usually means the embedding function doesn't match ChromaDB's expected interface
+- Check that Ollama is running: ollama serve  
+- Check that the model is available: ollama list | grep nomic-embed-text
+- Try clearing ChromaDB: python fix_rag_collection.py clear
+"""
+                    self.logger.error(detailed_error)
+                    raise Exception(f"ChromaDB embedding function signature error. Check Ollama is running and model is available. Full error: {error_msg}")
+                else:
+                    self.logger.error(f"Failed to create collection {collection_name}: {error_msg}")
+                    raise
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
