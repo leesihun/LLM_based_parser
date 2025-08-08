@@ -9,6 +9,9 @@ import sys
 import logging
 from pathlib import Path
 
+# Disable ChromaDB telemetry
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 # Add src directory to path
 sys.path.append(str(Path(__file__).parent / "src"))
 

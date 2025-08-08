@@ -6,6 +6,10 @@ Provides REST API endpoints for chat functionality
 
 import json
 import os
+
+# Disable ChromaDB telemetry before importing RAG system
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 from functools import wraps

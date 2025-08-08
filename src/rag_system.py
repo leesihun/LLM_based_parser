@@ -4,6 +4,11 @@ RAG (Retrieval-Augmented Generation) System
 Uses ChromaDB for vector storage with configurable Ollama embedding models
 """
 
+import os
+
+# Disable ChromaDB telemetry before importing
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 import chromadb
 import logging
 import json
