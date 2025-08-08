@@ -2,7 +2,11 @@
   "ollama": {
     "host": "http://localhost:11434",
     "model": "gemma3:12b",
-    "timeout": 30000
+    "timeout": 300000, 
+    "num_ctx": 127000,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40
   },
   "server": {
     "port": 8000,
@@ -12,6 +16,32 @@
     "title": "HE team LLM assistant",
     "theme": "dark"
   },
+  "system_prompt": {
+    "enabled": true,
+    "universal": [
+      "You are an AI assistant for the HE team. Always be professional, accurate, and helpful.",
+      "Provide clear, concise responses and ask for clarification when needed.",
+      "Always format your responses better, Use \\n to separate sentences."
+    ],
+    "default": [
+      "You provide general assistance with various tasks including programming, analysis, and problem-solving."
+    ],
+    "rag_mode": "You have access to the team's knowledge base. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so and provide general guidance if possible.",
+    "document_mode": "You are analyzing a document for the user. Provide detailed insights, summaries, and answer questions based on the document content provided. If the document is not related to the user's question, say so and provide general guidance if possible.",
+          "file_mode": "You are analyzing a specific file for the user. Examine the file content carefully and provide detailed analysis, insights, or answers to the user's questions about the file. If the file is not related to the user's question, say so and provide general guidance if possible.",
+      "search_mode": [
+        "You have access to current internet search results.",
+        "Use the provided search results to answer questions with up-to-date information.",
+        "Always cite the sources from the search results when providing information.",
+        "If the search results don't contain relevant information, say so and provide general guidance if possible."
+      ]
+    },
+    "web_search": {
+      "enabled": true,
+      "max_results": 5,
+      "timeout": 10,
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    },
   "rag": {
     "embedding": {
       "provider": "ollama",
@@ -32,10 +62,10 @@
       "max_chunk_size": 2000
     },
     "search": {
-      "default_results": 5,
-      "max_results": 20,
-      "max_context_length": 3000,
-      "similarity_threshold": 0.7
+      "default_results": 20,
+      "max_results": 100,
+      "max_context_length": 10000,
+      "similarity_threshold": 0.5
     },
     "performance": {
       "enable_caching": true,

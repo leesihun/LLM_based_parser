@@ -17,7 +17,7 @@ class LLMClient:
         self.config = self._load_config(config_path)
         self.ollama_url = self.config["ollama"]["host"]
         self.model = self.config["ollama"]["model"]
-        self.timeout = self.config["ollama"]["timeout"]
+        self.timeout = self.config["ollama"]["timeout"]*1000
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -38,7 +38,13 @@ class LLMClient:
         payload = {
             "model": self.model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
+                "temperature": self.config.get("ollama", {}).get("temperature", 0.7),
+                "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
+                "top_k": self.config.get("ollama", {}).get("top_k", 40)
+            }
         }
         
         if system_prompt:
@@ -67,7 +73,13 @@ class LLMClient:
         payload = {
             "model": self.model,
             "messages": messages,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
+                "temperature": self.config.get("ollama", {}).get("temperature", 0.7),
+                "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
+                "top_k": self.config.get("ollama", {}).get("top_k", 40)
+            }
         }
         
         try:

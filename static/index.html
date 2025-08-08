@@ -244,6 +244,24 @@
             color: #ffffff;
         }
 
+        .action-btn span {
+            margin-left: 6px;
+            font-size: 13px;
+        }
+
+        #newChatBtn {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+
+        #newChatBtn:hover {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.5);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
         .chat-title {
             font-size: 18px;
             font-weight: 600;
@@ -280,6 +298,12 @@
             background: rgba(249, 115, 22, 0.1);
             border-color: rgba(249, 115, 22, 0.3);
             color: #f97316;
+        }
+
+        .mode-indicator.search-active {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.3);
+            color: #3b82f6;
         }
 
         /* Chat Area */
@@ -661,6 +685,10 @@
                     <i class="fas fa-file-alt"></i>
                     <span>Analyze Provided File</span>
                 </button>
+                <button class="feature-btn" id="searchModeBtn">
+                    <i class="fas fa-globe"></i>
+                    <span>Web Search</span>
+                </button>
             </div>
         </div>
 
@@ -699,6 +727,10 @@
                     <!-- Mode indicators will be added here -->
                 </div>
                 <div class="user-actions">
+                    <button class="action-btn" id="newChatBtn" title="Start New Chat">
+                        <i class="fas fa-plus"></i>
+                        <span>New Chat</span>
+                    </button>
                     <button class="action-btn" id="settingsBtn" title="Settings">
                         <i class="fas fa-cog"></i>
                     </button>
@@ -731,6 +763,10 @@
                     <button class="mode-btn" data-mode="file" id="fileChatModeBtn" disabled>
                         <i class="fas fa-file-alt"></i>
                         <span>Analyze Provided File</span>
+                    </button>
+                    <button class="mode-btn" data-mode="search">
+                        <i class="fas fa-globe"></i>
+                        <span>Web Search</span>
                     </button>
                 </div>
 
@@ -844,6 +880,7 @@
         const statusSection = document.getElementById('systemStatus');
         const settingsBtn = document.getElementById('settingsBtn');
         const logoutBtn = document.getElementById('logoutBtn');
+        const newChatBtn = document.getElementById('newChatBtn');
         const settingsModal = document.getElementById('settingsModal');
         const attachBtn = document.getElementById('attachBtn');
 
@@ -854,7 +891,7 @@
             checkSystemStatus();
             
             // Add welcome message
-            addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n• **Normal Chat** - General conversation and assistance\n• **RAG Search** - Search through your knowledge base\n• **Document Q&A** - Ask questions about your combined document\n• **File Analysis** - Upload and analyze files\n\nSelect a mode above or upload files to get started!');
+            addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n• **Normal Chat** - General conversation and assistance\n• **RAG Search** - Search through your knowledge base\n• **Document Q&A** - Ask questions about your combined document\n• **File Analysis** - Upload and analyze files\n• **Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
         });
 
         function setupEventListeners() {
@@ -881,6 +918,7 @@
             document.getElementById('ragModeBtn').addEventListener('click', () => selectMode('rag'));
             document.getElementById('documentModeBtn').addEventListener('click', () => selectMode('document'));
             document.getElementById('fileModeBtn').addEventListener('click', () => selectMode('file'));
+            document.getElementById('searchModeBtn').addEventListener('click', () => selectMode('search'));
 
             // File upload
             uploadArea.addEventListener('click', () => fileInput.click());
@@ -895,9 +933,10 @@
                 this.style.height = this.scrollHeight + 'px';
             });
 
-            // Settings and logout
+            // Settings, new chat, and logout
             settingsBtn.addEventListener('click', openSettingsModal);
             logoutBtn.addEventListener('click', logout);
+            newChatBtn.addEventListener('click', startNewChat);
             
             // Attach button (trigger file input)
             attachBtn.addEventListener('click', () => fileInput.click());
@@ -939,6 +978,8 @@
                 modeIndicators.innerHTML = '<div class="mode-indicator document-active"><i class="fas fa-book-open"></i> Document Mode</div>';
             } else if (currentMode === 'file' && selectedFileId) {
                 modeIndicators.innerHTML = '<div class="mode-indicator file-active"><i class="fas fa-file-alt"></i> File Selected</div>';
+            } else if (currentMode === 'search') {
+                modeIndicators.innerHTML = '<div class="mode-indicator search-active"><i class="fas fa-globe"></i> Web Search</div>';
             }
         }
 
@@ -947,7 +988,8 @@
                 normal: 'Type your message here...',
                 rag: 'Search existing RAG knowledge base...',
                 document: 'Ask questions about existing docs...',
-                file: 'Ask questions about the provided file...'
+                file: 'Ask questions about the provided file...',
+                search: 'Ask questions and get current web results...'
             };
             
             messageInput.placeholder = placeholders[currentMode] || placeholders.normal;
@@ -978,6 +1020,9 @@
                         break;
                     case 'file':
                         response = await sendFileMessage(message);
+                        break;
+                    case 'search':
+                        response = await sendSearchMessage(message);
                         break;
                     default:
                         response = await sendNormalMessage(message);
@@ -1075,6 +1120,26 @@
                 },
                 body: JSON.stringify({
                     question: message,
+                    session_id: sessionId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        async function sendSearchMessage(message) {
+            const response = await fetch('/api/search/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    message: message,
                     session_id: sessionId
                 })
             });
@@ -1361,6 +1426,31 @@
             setTimeout(() => {
                 notification.remove();
             }, 3000);
+        }
+
+        // New Chat function
+        async function startNewChat() {
+            if (confirm('Start a new chat? This will clear the current conversation.')) {
+                // Clear current session
+                sessionId = null;
+                
+                // Clear messages container
+                messagesContainer.innerHTML = '';
+                
+                // Reset to normal mode
+                selectMode('normal');
+                
+                // Clear any selected file
+                selectedFileId = null;
+                document.querySelectorAll('.file-item').forEach(item => {
+                    item.style.backgroundColor = '';
+                });
+                
+                // Add welcome message
+                addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n• **Normal Chat** - General conversation and assistance\n• **RAG Search** - Search through your knowledge base\n• **Document Q&A** - Ask questions about your combined document\n• **File Analysis** - Upload and analyze files\n• **Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
+                
+                showNotification('New chat started', 'success');
+            }
         }
 
         // Settings and user management functions

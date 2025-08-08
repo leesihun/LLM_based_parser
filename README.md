@@ -57,7 +57,11 @@ Edit `config.json` to customize settings:
   "ollama": {
     "host": "http://localhost:11434",
     "model": "llama3.2",
-    "timeout": 30000
+    "timeout": 30000,
+    "num_ctx": 8192,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40
   },
   "server": {
     "port": 8000,
@@ -421,6 +425,120 @@ The server is configured to accept connections from other devices on your networ
 ## License
 
 MIT License - feel free to use and modify as needed.
+
+## System Prompt Configuration
+
+### Overview
+The system supports configurable system prompts that define the AI assistant's behavior and personality. You can set different system prompts for different modes of operation.
+
+### Configuration Location
+System prompts are configured in `config/config.json` under the `system_prompt` section:
+
+```json
+{
+  "system_prompt": {
+    "enabled": true,
+    "universal": "You are an AI assistant for the HE team. Always be professional, accurate, and helpful. Provide clear, concise responses and ask for clarification when needed.",
+    "default": "You provide general assistance with various tasks including programming, analysis, and problem-solving.",
+    "rag_mode": "You have access to the team's knowledge base. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so and provide general guidance if possible.",
+    "document_mode": "You are analyzing a document for the user. Provide detailed insights, summaries, and answer questions based on the document content provided.",
+    "file_mode": "You are analyzing a specific file for the user. Examine the file content carefully and provide detailed analysis, insights, or answers to the user's questions about the file."
+  }
+}
+```
+
+### System Prompt Types
+1. **`universal`** - Base prompt applied to ALL modes (defines core personality and behavior)
+2. **`default`** - Additional instructions for normal chat conversations
+3. **`rag_mode`** - Additional instructions for RAG knowledge base searches
+4. **`document_mode`** - Additional instructions for document analysis
+5. **`file_mode`** - Additional instructions for file analysis
+
+### How System Prompts Combine
+The system automatically combines prompts as: **Universal + Mode-Specific**
+
+For example, in RAG mode, the final system prompt becomes:
+```
+You are an AI assistant for the HE team. Always be professional, accurate, and helpful. Provide clear, concise responses and ask for clarification when needed.
+
+You have access to the team's knowledge base. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so and provide general guidance if possible.
+```
+
+### How to Change System Prompts
+1. **Edit the config file**: Modify `config/config.json`
+2. **Restart the server**: Changes take effect after restarting
+3. **Enable/Disable**: Set `enabled: false` to disable all system prompts
+
+### Examples of Custom System Prompts
+
+**For Technical Support Team:**
+```json
+{
+  "universal": "You are a technical support specialist for the HE team. Always prioritize safety and best practices. Be patient and thorough in your explanations.",
+  "default": "Provide step-by-step solutions and ask clarifying questions when needed.",
+  "file_mode": "Analyze code or configuration files for issues, bugs, or security vulnerabilities. Suggest specific improvements."
+}
+```
+
+**For Research Team:**
+```json
+{
+  "universal": "You are a research assistant for the HE team. Be thorough, cite sources when possible, and acknowledge limitations in your knowledge.",
+  "rag_mode": "Use the knowledge base to provide comprehensive answers. If information is incomplete, suggest additional research directions.",
+  "document_mode": "Analyze research documents for key findings, methodologies, and potential applications."
+}
+```
+
+**For Development Team:**
+```json
+{
+  "universal": "You are a senior software engineer for the HE team. Focus on code quality, performance, and maintainability.",
+  "file_mode": "Review code for bugs, performance issues, security vulnerabilities, and suggest improvements. Be constructive and educational.",
+  "default": "Help with programming questions, architecture decisions, and debugging."
+}
+```
+
+## Recent Updates
+
+### Version 1.2 (Latest)
+- **Internet Search**: Added web search functionality using DuckDuckGo
+- **Search Mode**: New search mode in the frontend for current web information
+- **Array System Prompts**: Support for array format in system prompt configuration
+- **Enhanced Context**: Web search results integrated into AI responses
+
+### Version 1.1
+- **New Chat Button**: Added "New Chat" button to easily start fresh conversations
+- **Enhanced Context Control**: Added configurable context size for Ollama models
+- **Model Parameters**: Added temperature, top_p, and top_k configuration options
+- **Improved UI**: Better visual styling for the new chat functionality
+
+### Features Added:
+1. **Web Search Integration**: Real-time internet search using DuckDuckGo API
+2. **Search Mode**: Dedicated search mode that combines web results with AI responses
+3. **New Chat Button**: Green "New Chat" button in the header that clears current conversation and starts fresh
+4. **Context Size Configuration**: Set `num_ctx` in config.json to control model context window (default: 8192 tokens)
+5. **Model Parameters**: Fine-tune model behavior with temperature, top_p, and top_k settings
+6. **Array System Prompts**: Support for multi-line system prompts using arrays
+7. **User Management**: Complete admin panel for adding/managing users programmatically
+
+### Configuration Options:
+```json
+{
+  "ollama": {
+    "num_ctx": 8192,        // Context window size (tokens)
+    "temperature": 0.7,     // Creativity level (0.0-1.0)
+    "top_p": 0.9,          // Nucleus sampling
+    "top_k": 40            // Top-k sampling
+  },
+  "system_prompt": {
+    "enabled": true,        // Enable/disable system prompts
+    "default": "Your default system prompt here...",
+    "rag_mode": "System prompt for RAG searches...",
+    "document_mode": "System prompt for document analysis...",
+    "file_mode": "System prompt for file analysis..."
+  }
+}
+```
 
 ## Contributing
 

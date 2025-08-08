@@ -18,17 +18,19 @@ from core.conversation_memory import ConversationMemory
 from core.user_management import UserManager
 from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
+from src.web_search import WebSearcher
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 app.secret_key = 'he_team_llm_assistant_secret_key'  # Change this in production
 
-# Initialize LLM client, conversation memory, user manager, RAG system, and file handler
+# Initialize LLM client, conversation memory, user manager, RAG system, file handler, and web searcher
 llm_client = LLMClient()
 memory = ConversationMemory()
 user_manager = UserManager()
 rag_system = RAGSystem("config/config.json")  # Pass config path
 file_handler = FileHandler()
+web_searcher = WebSearcher(llm_client.config.get('web_search', {}))
 
 def require_auth(f):
     """Decorator to require authentication"""
@@ -56,6 +58,33 @@ def require_admin(f):
             return jsonify({'error': 'Admin privileges required'}), 403
         return f(*args, **kwargs)
     return decorated_function
+
+def get_combined_system_prompt(mode='default'):
+    """Get combined universal + mode-specific system prompt"""
+    system_config = llm_client.config.get('system_prompt', {})
+    if not system_config.get('enabled', False):
+        return None
+    
+    # Handle both string and array formats
+    def format_prompt(prompt_data):
+        if isinstance(prompt_data, list):
+            return '\n'.join(prompt_data)
+        elif isinstance(prompt_data, str):
+            return prompt_data
+        else:
+            return ''
+    
+    universal_prompt = format_prompt(system_config.get('universal', ''))
+    mode_prompt = format_prompt(system_config.get(mode, system_config.get('default', '')))
+    
+    if universal_prompt and mode_prompt:
+        return f"{universal_prompt}\n\n{mode_prompt}"
+    elif universal_prompt:
+        return universal_prompt
+    elif mode_prompt:
+        return mode_prompt
+    else:
+        return None
 
 @app.route('/')
 def serve_index():
@@ -179,6 +208,15 @@ def chat():
         
         # Get full conversation context for LLM
         conversation_context = memory.get_context_for_llm(session_id)
+        
+        # Add combined system prompt if enabled and not already present
+        if conversation_context:
+            # Check if system message already exists
+            has_system = any(msg['role'] == 'system' for msg in conversation_context)
+            if not has_system:
+                system_prompt = get_combined_system_prompt('default')
+                if system_prompt:
+                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
         
         # Generate response using full conversation context
         response = llm_client.chat_completion(conversation_context)
@@ -315,6 +353,15 @@ Please answer the question using the provided context when relevant."""
         # Get full conversation context for LLM
         conversation_context = memory.get_context_for_llm(session_id)
         
+        # Add RAG-specific combined system prompt if enabled and not already present
+        if conversation_context:
+            # Check if system message already exists
+            has_system = any(msg['role'] == 'system' for msg in conversation_context)
+            if not has_system:
+                system_prompt = get_combined_system_prompt('rag_mode')
+                if system_prompt:
+                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
+        
         # Replace the last user message with enhanced version
         if conversation_context and len(conversation_context) > 0:
             conversation_context[-1]['content'] = enhanced_message
@@ -341,6 +388,109 @@ def rag_stats():
     try:
         stats = rag_system.get_collection_stats()
         return jsonify({'stats': stats})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Web Search Endpoints
+
+@app.route('/api/search/web', methods=['POST'])
+@require_auth
+def web_search():
+    """Perform web search"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        max_results = data.get('max_results', 5)
+        
+        if not query:
+            return jsonify({'error': 'Query is required'}), 400
+        
+        # Check if web search is enabled
+        search_config = llm_client.config.get('web_search', {})
+        if not search_config.get('enabled', False):
+            return jsonify({'error': 'Web search is disabled'}), 403
+        
+        results = web_searcher.search(query, max_results)
+        
+        return jsonify({
+            'results': results,
+            'query': query,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/chat', methods=['POST'])
+@require_auth
+def search_chat():
+    """Chat with web search context"""
+    try:
+        data = request.get_json()
+        user_message = data.get('message', '')
+        session_id = data.get('session_id', None)
+        user_id = request.user['user_id']
+        
+        if not user_message:
+            return jsonify({'error': 'Message is required'}), 400
+        
+        # Check if web search is enabled
+        search_config = llm_client.config.get('web_search', {})
+        if not search_config.get('enabled', False):
+            return jsonify({'error': 'Web search is disabled'}), 403
+        
+        # Create new session if none provided
+        if not session_id:
+            session_id = memory.create_session(user_id)
+        
+        # Verify session belongs to current user
+        session_data = memory.get_session(session_id)
+        if not session_data or session_data.get('user_id') != user_id:
+            return jsonify({'error': 'Session not found or access denied'}), 403
+        
+        # Perform web search
+        search_results = web_searcher.search_with_context(user_message, search_config.get('max_results', 5))
+        
+        # Add user message to conversation memory
+        memory.add_message(session_id, 'user', user_message)
+        
+        # Create enhanced prompt with search results
+        enhanced_message = f"""Web Search Results:
+{search_results}
+
+User Question: {user_message}
+
+Please answer the user's question using the search results above when relevant. Always cite your sources."""
+        
+        # Get full conversation context for LLM
+        conversation_context = memory.get_context_for_llm(session_id)
+        
+        # Add search-specific combined system prompt if enabled and not already present
+        if conversation_context:
+            # Check if system message already exists
+            has_system = any(msg['role'] == 'system' for msg in conversation_context)
+            if not has_system:
+                system_prompt = get_combined_system_prompt('search_mode')
+                if system_prompt:
+                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
+        
+        # Replace the last user message with enhanced version
+        if conversation_context and len(conversation_context) > 0:
+            conversation_context[-1]['content'] = enhanced_message
+        
+        # Generate response using enhanced context
+        response = llm_client.chat_completion(conversation_context)
+        
+        # Add assistant response to conversation memory
+        memory.add_message(session_id, 'assistant', response)
+        
+        return jsonify({
+            'response': response,
+            'session_id': session_id,
+            'search_context_used': True,
+            'search_results_count': len(web_searcher.search(user_message, search_config.get('max_results', 5)))
+        })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -438,8 +588,11 @@ Please analyze the file content and answer the user's question."""
         # Add user message to conversation memory
         memory.add_message(session_id, 'user', f"[File Analysis] {file_info['original_name']}: {user_question}")
         
+        # Get combined system prompt for file mode
+        system_prompt = get_combined_system_prompt('file_mode')
+        
         # Generate response
-        response = llm_client.generate_response(enhanced_message)
+        response = llm_client.generate_response(enhanced_message, system_prompt)
         
         # Add assistant response to conversation memory
         memory.add_message(session_id, 'assistant', response)
@@ -520,8 +673,11 @@ Please analyze the document content and answer the user's question."""
         # Add user message to conversation memory
         memory.add_message(session_id, 'user', f"[Document Reading] data/combined_data.md: {user_question}")
         
+        # Get combined system prompt for document mode
+        system_prompt = get_combined_system_prompt('document_mode')
+        
         # Generate response
-        response = llm_client.generate_response(enhanced_message)
+        response = llm_client.generate_response(enhanced_message, system_prompt)
         
         # Add assistant response to conversation memory
         memory.add_message(session_id, 'assistant', response)
