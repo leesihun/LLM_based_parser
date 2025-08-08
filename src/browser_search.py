@@ -133,8 +133,8 @@ class BrowserSearcher:
     def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search DuckDuckGo using HTTP requests"""
         try:
-            # DuckDuckGo search URL
-            search_url = "https://html.duckduckgo.com/html/"
+            # DuckDuckGo search URL - use HTTP to avoid HTTPS proxy issues
+            search_url = "http://html.duckduckgo.com/html/"
             params = {
                 'q': query,
                 'kl': 'us-en',
@@ -189,7 +189,7 @@ class BrowserSearcher:
     def _search_bing(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search Bing using HTTP requests"""
         try:
-            search_url = "https://www.bing.com/search"
+            search_url = "http://www.bing.com/search"
             params = {
                 'q': query,
                 'count': max_results,
@@ -251,7 +251,7 @@ class BrowserSearcher:
     def _search_startpage(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search Startpage using HTTP requests"""
         try:
-            search_url = "https://www.startpage.com/sp/search"
+            search_url = "http://www.startpage.com/sp/search"
             params = {
                 'query': query,
                 'cat': 'web',
