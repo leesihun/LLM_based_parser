@@ -19,7 +19,7 @@ from core.user_management import UserManager
 from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
 # Import web search functionality
-from src.browser_search import BrowserSearcher as WebSearcher
+from src.selenium_search import SeleniumSearcher as WebSearcher
 
 # Import enhanced web search integration
 try:
