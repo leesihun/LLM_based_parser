@@ -75,24 +75,59 @@ def setup_rag_system():
         
     print("\nSetting up RAG system...")
     
-    rag = RAGSystem()
-    
-    # Check if combined_data.md exists
-    if not Path("combined_data.md").exists():
-        print("ERROR: combined_data.md not found. Please run Excel conversion first.")
-        return False
-    
-    # Ingest the document
-    success = rag.ingest_document("combined_data.md", force_reload=True)
-    
-    if success:
-        stats = rag.get_collection_stats()
-        print(f"OK: RAG system setup completed")
-        print(f"RAG Stats: {stats}")
-        return True
-    else:
-        print("ERROR: RAG system setup failed")
-        return False
+    try:
+        rag = RAGSystem()
+        
+        # Check if combined_data.md exists
+        if not Path("combined_data.md").exists():
+            print("ERROR: combined_data.md not found. Please run Excel conversion first.")
+            return False
+        
+        # Try to reinitialize collection to fix any existing issues
+        if hasattr(rag, 'reinitialize_collection'):
+            print("Reinitializing collection to ensure compatibility...")
+            rag.reinitialize_collection()
+        
+        # Ingest the document
+        success = rag.ingest_document("combined_data.md", force_reload=True)
+        
+        if success:
+            stats = rag.get_collection_stats()
+            print(f"OK: RAG system setup completed")
+            print(f"RAG Stats: {stats}")
+            return True
+        else:
+            print("ERROR: RAG system setup failed")
+            return False
+            
+    except Exception as e:
+        print(f"ERROR: RAG system initialization failed: {str(e)}")
+        print("Attempting to clear ChromaDB and retry...")
+        
+        # Try to clear the ChromaDB directory and retry
+        try:
+            import shutil
+            chroma_path = Path("./chroma_db")
+            if chroma_path.exists():
+                shutil.rmtree(chroma_path)
+                print("Cleared ChromaDB directory")
+                
+            # Retry initialization
+            rag = RAGSystem()
+            success = rag.ingest_document("combined_data.md", force_reload=True)
+            
+            if success:
+                stats = rag.get_collection_stats()
+                print(f"OK: RAG system setup completed after reset")
+                print(f"RAG Stats: {stats}")
+                return True
+            else:
+                print("ERROR: RAG system setup failed even after reset")
+                return False
+                
+        except Exception as retry_error:
+            print(f"ERROR: Could not recover RAG system: {str(retry_error)}")
+            return False
 
 def verify_system():
     """Verify system components"""

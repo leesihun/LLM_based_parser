@@ -136,17 +136,32 @@ class RAGSystem:
         # Get or create collection with custom embedding
         collection_name = self.collection_config.get("name", "documents")
         try:
+            # Try to get existing collection
             self.collection = self.client.get_collection(
                 name=collection_name,
                 embedding_function=self.embedding_function
             )
             self.logger.info(f"Loaded existing collection: {collection_name}")
-        except:
-            self.collection = self.client.create_collection(
-                name=collection_name,
-                embedding_function=self.embedding_function
-            )
-            self.logger.info(f"Created new collection: {collection_name}")
+        except Exception as e:
+            self.logger.info(f"Collection {collection_name} not found or incompatible, creating new one: {str(e)}")
+            
+            # If collection exists but with different embedding function, delete it
+            try:
+                self.client.delete_collection(name=collection_name)
+                self.logger.info(f"Deleted incompatible collection: {collection_name}")
+            except:
+                pass  # Collection didn't exist
+                
+            # Create new collection
+            try:
+                self.collection = self.client.create_collection(
+                    name=collection_name,
+                    embedding_function=self.embedding_function
+                )
+                self.logger.info(f"Created new collection: {collection_name}")
+            except Exception as create_error:
+                self.logger.error(f"Failed to create collection {collection_name}: {str(create_error)}")
+                raise
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -470,13 +485,25 @@ class RAGSystem:
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get statistics about the collection"""
         try:
+            # First check if collection exists
+            if not hasattr(self, 'collection') or self.collection is None:
+                return {
+                    "document_count": 0,
+                    "collection_name": self.collection_config.get("name", "documents"),
+                    "persist_directory": self.collection_config.get("persist_directory", "./chroma_db"),
+                    "embedding_model": self.embedding_config.get("model", "nomic-embed-text:latest"),
+                    "embedding_provider": self.embedding_config.get("provider", "ollama"),
+                    "status": "not_initialized"
+                }
+            
             count = self.collection.count()
             return {
                 "document_count": count,
                 "collection_name": self.collection_config.get("name", "documents"),
                 "persist_directory": self.collection_config.get("persist_directory", "./chroma_db"),
                 "embedding_model": self.embedding_config.get("model", "nomic-embed-text:latest"),
-                "embedding_provider": self.embedding_config.get("provider", "ollama")
+                "embedding_provider": self.embedding_config.get("provider", "ollama"),
+                "status": "active"
             }
         except Exception as e:
             self.logger.error(f"Error getting stats: {str(e)}")
@@ -487,7 +514,11 @@ class RAGSystem:
         try:
             collection_name = self.collection_config.get("name", "documents")
             # Delete the collection and recreate it
-            self.client.delete_collection(name=collection_name)
+            try:
+                self.client.delete_collection(name=collection_name)
+            except:
+                pass  # Collection might not exist
+                
             self.collection = self.client.create_collection(
                 name=collection_name,
                 embedding_function=self.embedding_function
@@ -496,6 +527,30 @@ class RAGSystem:
             return True
         except Exception as e:
             self.logger.error(f"Error clearing collection: {str(e)}")
+            return False
+    
+    def reinitialize_collection(self) -> bool:
+        """Reinitialize the collection (useful for fixing collection issues)"""
+        try:
+            collection_name = self.collection_config.get("name", "documents")
+            
+            # Delete existing collection if it exists
+            try:
+                self.client.delete_collection(name=collection_name)
+                self.logger.info(f"Deleted existing collection: {collection_name}")
+            except:
+                self.logger.info(f"No existing collection to delete: {collection_name}")
+            
+            # Create new collection
+            self.collection = self.client.create_collection(
+                name=collection_name,
+                embedding_function=self.embedding_function
+            )
+            self.logger.info(f"Reinitialized collection: {collection_name}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error reinitializing collection: {str(e)}")
             return False
 
 def main():
