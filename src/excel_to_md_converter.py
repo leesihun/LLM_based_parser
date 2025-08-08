@@ -49,6 +49,21 @@ class ExcelToMarkdownConverter:
         Returns:
             str: Markdown formatted table
         """
+        # Handle case where data is stored as column headers (0 rows, many columns)
+        if len(df) == 0 and len(df.columns) > 0:
+            # Data is stored as column headers, convert to list format
+            markdown_content = f"\n### {sheet_name}\n\n"
+            markdown_content += "**Data entries:**\n\n"
+            
+            for i, col in enumerate(df.columns, 1):
+                # Clean and format each entry
+                entry = str(col).strip()
+                markdown_content += f"{i}. {entry}\n"
+            
+            markdown_content += "\n"
+            return markdown_content
+        
+        # Regular case with actual data rows
         if df.empty:
             return f"\n### {sheet_name}\n\n*No data found in this sheet*\n\n"
         
