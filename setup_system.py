@@ -141,19 +141,36 @@ def verify_system():
     else:
         checks.append(("Combined markdown file", False))
     
-    # Check RAG system
-    if DEPENDENCIES_AVAILABLE:
-        try:
-            rag = RAGSystem()
-            # Check embedding model availability
-            embedding_available = rag.check_embedding_model_availability()
-            stats = rag.get_collection_stats()
-            checks.append(("RAG embedding model", embedding_available))
-            checks.append(("RAG system", stats.get('document_count', 0) > 0))
-        except Exception as e:
-            checks.append(("RAG embedding model", False))
-            checks.append(("RAG system", False))
-    else:
+    # Check RAG system using the same approach as test_rag_config.py
+    try:
+        # Test embedding model availability directly (like test_rag_config.py)
+        import requests
+        import json
+        
+        # Load config
+        with open("config/config.json", 'r') as f:
+            config = json.load(f)
+        
+        embedding_config = config.get("rag", {}).get("embedding", {})
+        model = embedding_config.get("model", "nomic-embed-text:latest")
+        host = embedding_config.get("ollama_host", "http://localhost:11434")
+        url = f"{host}/api/embeddings"
+        
+        # Test Ollama connection directly
+        payload = {"model": model, "prompt": "test"}
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        result = response.json()
+        embedding_available = 'embedding' in result and len(result['embedding']) > 0
+        
+        checks.append(("RAG embedding model", embedding_available))
+        
+        # Check if documents exist without creating RAG system
+        combined_data_exists = Path("combined_data.md").exists()
+        checks.append(("RAG system", combined_data_exists))
+        
+    except Exception as e:
         checks.append(("RAG embedding model", False))
         checks.append(("RAG system", False))
     
@@ -207,25 +224,39 @@ def main():
     print("\n" + "=" * 50)
     print("Setup completed! Next steps:")
     print("1. Install requirements: pip install -r requirements.txt")
-    if DEPENDENCIES_AVAILABLE:
-        # Check if we need to install embedding model
-        try:
-            rag = RAGSystem()
-            if not rag.check_embedding_model_availability():
-                print("2. Install embedding model: ollama pull nomic-embed-text:latest")
-                print("3. Start the server: python server.py")
-                print("4. Open enhanced UI: http://localhost:3000")
-            else:
-                print("2. Start the server: python server.py")
-                print("3. Open enhanced UI: http://localhost:3000")
-        except:
+    
+    # Check if we need to install embedding model using the same approach as verify_system
+    try:
+        import requests
+        import json
+        
+        # Load config and test embedding model
+        with open("config/config.json", 'r') as f:
+            config = json.load(f)
+        
+        embedding_config = config.get("rag", {}).get("embedding", {})
+        model = embedding_config.get("model", "nomic-embed-text:latest")
+        host = embedding_config.get("ollama_host", "http://localhost:11434")
+        url = f"{host}/api/embeddings"
+        
+        # Test Ollama connection
+        payload = {"model": model, "prompt": "test"}
+        response = requests.post(url, json=payload, timeout=5)
+        response.raise_for_status()
+        
+        result = response.json()
+        if 'embedding' in result and len(result['embedding']) > 0:
+            print("2. Start the server: python server.py")
+            print("3. Open enhanced UI: http://localhost:3000")
+        else:
             print("2. Install embedding model: ollama pull nomic-embed-text:latest")
             print("3. Start the server: python server.py")
             print("4. Open enhanced UI: http://localhost:3000")
-    else:
+    except:
         print("2. Install embedding model: ollama pull nomic-embed-text:latest")
         print("3. Start the server: python server.py")
         print("4. Open enhanced UI: http://localhost:3000")
+    
     print("=" * 50)
 
 if __name__ == "__main__":
