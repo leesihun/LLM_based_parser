@@ -111,59 +111,6 @@ class SeleniumSearcher:
         except:
             return webdriver.Firefox(options=firefox_options, firefox_profile=profile)
     
-    def _search_google(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """Search Google using Selenium"""
-        results = []
-        
-        try:
-            # Navigate to Google
-            self.driver.get(f"https://www.google.com/search?q={query}")
-            
-            # Wait for results to load
-            WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "h3"))
-            )
-            
-            # Find result containers
-            result_elements = self.driver.find_elements(By.CSS_SELECTOR, "div.g")
-            
-            for element in result_elements[:max_results]:
-                try:
-                    # Extract title and URL
-                    title_element = element.find_element(By.CSS_SELECTOR, "h3")
-                    title = title_element.text.strip()
-                    
-                    link_element = element.find_element(By.CSS_SELECTOR, "a")
-                    url = link_element.get_attribute("href")
-                    
-                    # Extract snippet
-                    snippet = ""
-                    try:
-                        snippet_elements = element.find_elements(By.CSS_SELECTOR, "span")
-                        for span in snippet_elements:
-                            span_text = span.text.strip()
-                            if len(span_text) > 20:  # Likely a description
-                                snippet = span_text[:200]
-                                break
-                    except:
-                        pass
-                    
-                    if title and url and not url.startswith("javascript:"):
-                        results.append({
-                            'title': title,
-                            'snippet': snippet + "..." if snippet else "Google search result",
-                            'url': url,
-                            'source': 'Google'
-                        })
-                        
-                except Exception as e:
-                    self.logger.debug(f"Error parsing Google result: {e}")
-                    continue
-            
-        except Exception as e:
-            self.logger.error(f"Google search failed: {e}")
-        
-        return results
     
     def _search_bing(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search Bing using Selenium"""
@@ -213,57 +160,10 @@ class SeleniumSearcher:
         
         return results
     
-    def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """Search DuckDuckGo using Selenium"""
-        results = []
-        
-        try:
-            # Navigate to DuckDuckGo
-            self.driver.get(f"https://duckduckgo.com/?q={query}")
-            
-            # Wait for results
-            WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-result]"))
-            )
-            
-            # Find result containers
-            result_elements = self.driver.find_elements(By.CSS_SELECTOR, "[data-result]")
-            
-            for element in result_elements[:max_results]:
-                try:
-                    # Extract title and URL
-                    title_element = element.find_element(By.CSS_SELECTOR, "h2 a")
-                    title = title_element.text.strip()
-                    url = title_element.get_attribute("href")
-                    
-                    # Extract snippet
-                    snippet = ""
-                    try:
-                        snippet_element = element.find_element(By.CSS_SELECTOR, "[data-result] > div > div")
-                        snippet = snippet_element.text.strip()[:200]
-                    except:
-                        pass
-                    
-                    if title and url:
-                        results.append({
-                            'title': title,
-                            'snippet': snippet + "..." if snippet else "DuckDuckGo search result",
-                            'url': url,
-                            'source': 'DuckDuckGo'
-                        })
-                        
-                except Exception as e:
-                    self.logger.debug(f"Error parsing DuckDuckGo result: {e}")
-                    continue
-            
-        except Exception as e:
-            self.logger.error(f"DuckDuckGo search failed: {e}")
-        
-        return results
     
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, str]]:
         """
-        Perform web search using browser automation
+        Perform Bing search using browser automation
         
         Args:
             query: Search query string
@@ -277,31 +177,15 @@ class SeleniumSearcher:
         
         max_results = max_results or self.max_results
         
-        # Try search engines in order of preference
-        search_engines = [
-            self._search_google,
-            self._search_bing,
-            self._search_duckduckgo
-        ]
-        
-        for search_func in search_engines:
-            try:
-                results = search_func(query, max_results)
-                if results:
-                    self.logger.info(f"Found {len(results)} results using {search_func.__name__}")
-                    time.sleep(self.delay_between_requests)  # Be respectful
-                    return results
-            except Exception as e:
-                self.logger.warning(f"Search engine {search_func.__name__} failed: {str(e)}")
-                continue
-        
-        # Return fallback if all engines fail
-        return [{
-            'title': 'Browser Search Unavailable',
-            'snippet': f'Unable to search for "{query}" using browser automation. This may be due to network issues or browser configuration problems.',
-            'url': f'https://www.google.com/search?q={query}',
-            'source': 'Fallback'
-        }]
+        # Use Bing search only
+        results = self._search_bing(query, max_results)
+        if results:
+            self.logger.info(f"Found {len(results)} results from Bing")
+            time.sleep(self.delay_between_requests)
+        else:
+            self.logger.warning("Bing search returned no results")
+            
+        return results
     
     def search_with_context(self, query: str, max_results: Optional[int] = None) -> str:
         """Search and format results for LLM context"""
@@ -310,7 +194,7 @@ class SeleniumSearcher:
         if not results:
             return f"No browser search results found for: {query}"
         
-        context = f"Browser Search Results for '{query}':\n\n"
+        context = f"Bing Search Results for '{query}':\n\n"
         
         for i, result in enumerate(results, 1):
             context += f"{i}. **{result['title']}**\n"
@@ -318,7 +202,6 @@ class SeleniumSearcher:
                 context += f"   {result['snippet']}\n"
             if result['url']:
                 context += f"   URL: {result['url']}\n"
-            context += f"   Engine: {result['source']}\n"
             context += "\n"
         
         return context
@@ -331,10 +214,10 @@ class SeleniumSearcher:
             results = self.search(test_query, max_results=3)
             
             return {
-                'success': len(results) > 0 and not any('Fallback' in r.get('source', '') for r in results),
+                'success': len(results) > 0,
                 'result_count': len(results),
                 'test_query': test_query,
-                'engines_working': list(set([r.get('source', 'Unknown') for r in results])),
+                'engines_working': ['Bing'],
                 'sample_result': results[0] if results else None,
                 'timestamp': datetime.now().isoformat()
             }
@@ -377,7 +260,7 @@ def test_selenium_search():
         
         if test_result['success']:
             print(f"Found {test_result['result_count']} results")
-            print(f"Working engines: {', '.join(test_result['engines_working'])}")
+            print("Using Bing search engine")
             
             if test_result['sample_result']:
                 sample = test_result['sample_result']

@@ -87,37 +87,28 @@ def test_selenium_browser_search():
         else:
             print(f"Test failed: {test_result.get('error', 'Unknown error')}")
         
-        # Test actual searches
-        test_queries = [
-            "python programming tutorial",
-            "web development basics",
-            "machine learning introduction"
-        ]
+        # Test Bing search
+        test_query = "python programming tutorial"
+        print(f"\nTesting Bing search: '{test_query}'")
+        print("-" * 40)
         
-        for query in test_queries:
-            print(f"\nTesting search: '{query}'")
-            print("-" * 40)
+        results = searcher.search(test_query, max_results=3)
+        
+        if results and len(results) > 0:
+            print(f"✓ Found {len(results)} Bing results")
             
-            results = searcher.search(query, max_results=3)
-            
-            if results and len(results) > 0:
-                print(f"✓ Found {len(results)} results")
-                
-                for i, result in enumerate(results, 1):
-                    print(f"  {i}. {result['title'][:50]}...")
-                    print(f"     Source: {result['source']}")
-                    print(f"     URL: {result['url'][:60]}...")
-                    if result.get('snippet'):
-                        print(f"     Snippet: {result['snippet'][:80]}...")
-                    print()
-            else:
-                print(f"✗ No results found for '{query}'")
-            
-            time.sleep(2)  # Pause between searches
+            for i, result in enumerate(results, 1):
+                print(f"  {i}. {result['title'][:50]}...")
+                print(f"     URL: {result['url'][:60]}...")
+                if result.get('snippet'):
+                    print(f"     Snippet: {result['snippet'][:80]}...")
+                print()
+        else:
+            print(f"✗ No Bing results found for '{test_query}'")
         
         searcher.close()
         print("✓ Browser closed successfully")
-        return len([r for r in results if 'Fallback' not in r.get('source', '')]) > 0
+        return len(results) > 0
         
     except ImportError as e:
         print(f"✗ Import error: {e}")
@@ -156,8 +147,7 @@ def test_web_search_feature():
         print(f"Test status: {'SUCCESS' if capabilities['test_status']['success'] else 'FAILED'}")
         
         if capabilities['test_status']['success']:
-            engines = capabilities['test_status'].get('engines_working', [])
-            print(f"Working engines: {', '.join(engines)}")
+            print("Working engine: Bing")
         
         # Test search with LLM formatting
         test_query = "artificial intelligence basics"
@@ -230,7 +220,7 @@ def main():
         print("\n🎉 ALL TESTS PASSED!")
         print("Your Selenium browser search system is working!")
         print("\nBrowser automation successfully bypasses proxy restrictions!")
-        print("You can now use real Google/Bing search results in your LLM system.")
+        print("You can now use real Bing search results in your LLM system.")
         return True
     else:
         print(f"\n⚠️ {total_tests - tests_passed} test(s) failed")
