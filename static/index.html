@@ -306,6 +306,12 @@
             color: #3b82f6;
         }
 
+        .mode-indicator.enhanced-search-active {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #10b981;
+        }
+
         /* Chat Area */
         .chat-container {
             flex: 1;
@@ -368,6 +374,24 @@
             background: #1e1e1e;
             border: 1px solid #2a2a2a;
             border-bottom-left-radius: 6px;
+        }
+
+        /* Search Info */
+        .search-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            margin: 8px 20px;
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            border-radius: 6px;
+            font-size: 12px;
+            color: #60a5fa;
+        }
+
+        .search-info i {
+            font-size: 12px;
         }
 
         /* Input Area */
@@ -689,6 +713,10 @@
                     <i class="fas fa-globe"></i>
                     <span>Web Search</span>
                 </button>
+                <button class="feature-btn" id="enhancedSearchBtn">
+                    <i class="fas fa-search-plus"></i>
+                    <span>Enhanced Web Search</span>
+                </button>
             </div>
         </div>
 
@@ -919,6 +947,7 @@
             document.getElementById('documentModeBtn').addEventListener('click', () => selectMode('document'));
             document.getElementById('fileModeBtn').addEventListener('click', () => selectMode('file'));
             document.getElementById('searchModeBtn').addEventListener('click', () => selectMode('search'));
+            document.getElementById('enhancedSearchBtn').addEventListener('click', () => selectMode('enhanced_search'));
 
             // File upload
             uploadArea.addEventListener('click', () => fileInput.click());
@@ -980,6 +1009,8 @@
                 modeIndicators.innerHTML = '<div class="mode-indicator file-active"><i class="fas fa-file-alt"></i> File Selected</div>';
             } else if (currentMode === 'search') {
                 modeIndicators.innerHTML = '<div class="mode-indicator search-active"><i class="fas fa-globe"></i> Web Search</div>';
+            } else if (currentMode === 'enhanced_search') {
+                modeIndicators.innerHTML = '<div class="mode-indicator enhanced-search-active"><i class="fas fa-search-plus"></i> Enhanced Web Search</div>';
             }
         }
 
@@ -989,7 +1020,8 @@
                 rag: 'Search existing RAG knowledge base...',
                 document: 'Ask questions about existing docs...',
                 file: 'Ask questions about the provided file...',
-                search: 'Ask questions and get current web results...'
+                search: 'Ask questions and get current web results...',
+                enhanced_search: 'Ask questions with enhanced browser-based search...'
             };
             
             messageInput.placeholder = placeholders[currentMode] || placeholders.normal;
@@ -1023,6 +1055,9 @@
                         break;
                     case 'search':
                         response = await sendSearchMessage(message);
+                        break;
+                    case 'enhanced_search':
+                        response = await sendEnhancedSearchMessage(message);
                         break;
                     default:
                         response = await sendNormalMessage(message);
@@ -1149,6 +1184,45 @@
             }
 
             return await response.json();
+        }
+
+        async function sendEnhancedSearchMessage(message) {
+            const response = await fetch('/api/search/enhanced_chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    message: message,
+                    session_id: sessionId,
+                    max_results: 5
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            // Show search info if available
+            if (result.search_performed && result.sources_found > 0) {
+                addSearchInfo(result.search_query, result.sources_found);
+            }
+            
+            return result;
+        }
+
+        function addSearchInfo(query, sourceCount) {
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'search-info';
+            infoDiv.innerHTML = `
+                <i class="fas fa-search"></i>
+                <span>Searched: "${query}" (${sourceCount} sources found)</span>
+            `;
+            chatContainer.appendChild(infoDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
         function addMessage(sender, content) {

@@ -18,10 +18,14 @@ from core.conversation_memory import ConversationMemory
 from core.user_management import UserManager
 from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
+# Import web search functionality
+from src.browser_search import BrowserSearcher as WebSearcher
+
+# Import enhanced web search integration
 try:
-    from src.web_search_improved import ImprovedWebSearcher as WebSearcher
+    from src.server_integration import integrate_web_search
 except ImportError:
-    from src.web_search import WebSearcher
+    integrate_web_search = None
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -952,6 +956,15 @@ def get_local_ip():
         return local_ip
     except Exception:
         return "Unable to determine IP"
+
+# Initialize enhanced web search integration if available
+enhanced_search_integration = None
+if integrate_web_search:
+    try:
+        enhanced_search_integration = integrate_web_search(app, memory, llm_client, user_manager, require_auth)
+        print("Enhanced web search integration initialized successfully")
+    except Exception as e:
+        print(f"Failed to initialize enhanced web search: {e}")
 
 def main():
     """Main function to start the server"""
