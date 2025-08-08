@@ -13,7 +13,9 @@
       "Bash(mv:*)",
       "Bash(del:*)",
       "Bash(mv:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(python test:*)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }

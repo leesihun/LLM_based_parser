@@ -1,0 +1,15 @@
+[
+  {
+    "success": true,
+    "method": "HTTP Requests",
+    "status_code": 200,
+    "content_length": 83986,
+    "error": null
+  },
+  {
+    "success": true,
+    "method": "Selenium Chrome",
+    "results": [],
+    "result_count": 0
+  }
+]

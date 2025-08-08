@@ -680,7 +680,7 @@ python test_tavily_simple.py
 - No auth: `http://proxy.company.com:8080`
 - With auth: `http://username:password@proxy.company.com:8080`
 
-#### 3. **Alternative Configurations**
+#### 4. **Alternative Configurations**
 
 **For restricted networks:**
 ```json
@@ -715,7 +715,7 @@ python test_tavily_simple.py
 }
 ```
 
-#### 4. **Getting Google Custom Search API**
+#### 5. **Getting Google Custom Search API**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Enable Custom Search API
 3. Create API key
