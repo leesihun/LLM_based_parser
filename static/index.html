@@ -215,6 +215,35 @@
             justify-content: space-between;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .action-btn {
+            background: rgba(55, 65, 81, 0.2);
+            border: 1px solid rgba(55, 65, 81, 0.4);
+            border-radius: 8px;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 8px 12px;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+
+        .action-btn:hover {
+            background: rgba(55, 65, 81, 0.4);
+            border-color: rgba(96, 165, 250, 0.4);
+            color: #ffffff;
+        }
+
         .chat-title {
             font-size: 18px;
             font-weight: 600;
@@ -469,6 +498,138 @@
             }
         }
 
+        /* Settings Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .setting-group {
+            margin-bottom: 20px;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #ffffff;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .setting-input {
+            width: 100%;
+            background: #0f0f0f;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            padding: 12px 16px;
+            transition: border-color 0.2s;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .setting-description {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .modal-footer {
+            padding: 20px 24px;
+            border-top: 1px solid #2a2a2a;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.primary {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-color: #2563eb;
+            color: white;
+        }
+
+        .modal-btn.primary:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            transform: translateY(-1px);
+        }
+
+        .modal-btn.secondary {
+            background: rgba(55, 65, 81, 0.2);
+            border-color: rgba(55, 65, 81, 0.4);
+            color: #9ca3af;
+        }
+
+        .modal-btn.secondary:hover {
+            background: rgba(55, 65, 81, 0.4);
+            color: #ffffff;
+        }
+
         /* Utility classes */
         .hidden { display: none !important; }
         .text-success { color: #22c55e; }
@@ -490,15 +651,15 @@
             <div class="feature-buttons">
                 <button class="feature-btn" id="ragModeBtn">
                     <i class="fas fa-search"></i>
-                    <span>RAG Search</span>
+                    <span>Existing RAG Search</span>
                 </button>
                 <button class="feature-btn" id="documentModeBtn">
                     <i class="fas fa-book-open"></i>
-                    <span>Read Document</span>
+                    <span>Read Existing Docs</span>
                 </button>
                 <button class="feature-btn" id="fileModeBtn">
                     <i class="fas fa-file-alt"></i>
-                    <span>Analyze Files</span>
+                    <span>Analyze Provided File</span>
                 </button>
             </div>
         </div>
@@ -510,8 +671,8 @@
                 <div class="upload-icon">
                     <i class="fas fa-cloud-upload-alt"></i>
                 </div>
-                <div class="upload-text">Click or drag files here</div>
-                <div class="upload-subtext">Supports: PDF, DOCX, XLSX, TXT, MD</div>
+                <div class="upload-text">Click or drag files here to upload</div>
+                <div class="upload-subtext">Supports: PDF, DOCX, XLSX, TXT, MD, PY, JS, JSON, CSV, HTML, XML, YML</div>
                 <input type="file" id="fileInput" accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.py,.js,.json,.csv,.html,.xml,.yml,.yaml" multiple>
             </div>
             
@@ -533,8 +694,18 @@
     <div class="main-content">
         <div class="chat-header">
             <div class="chat-title">AI Assistant Chat</div>
-            <div class="mode-indicators" id="modeIndicators">
-                <!-- Mode indicators will be added here -->
+            <div class="header-actions">
+                <div class="mode-indicators" id="modeIndicators">
+                    <!-- Mode indicators will be added here -->
+                </div>
+                <div class="user-actions">
+                    <button class="action-btn" id="settingsBtn" title="Settings">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button class="action-btn" id="logoutBtn" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -551,15 +722,15 @@
                     </button>
                     <button class="mode-btn" data-mode="rag">
                         <i class="fas fa-search"></i>
-                        <span>RAG Search</span>
+                        <span>Existing RAG Search</span>
                     </button>
                     <button class="mode-btn" data-mode="document">
                         <i class="fas fa-book-open"></i>
-                        <span>Document Q&A</span>
+                        <span>Read Existing Docs</span>
                     </button>
                     <button class="mode-btn" data-mode="file" id="fileChatModeBtn" disabled>
                         <i class="fas fa-file-alt"></i>
-                        <span>File Analysis</span>
+                        <span>Analyze Provided File</span>
                     </button>
                 </div>
 
@@ -579,6 +750,50 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay hidden" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Settings</div>
+                <button class="modal-close" id="closeSettingsModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">LLM Model</label>
+                    <select class="setting-input" id="modelSelect">
+                        <option value="">Loading models...</option>
+                    </select>
+                    <div class="setting-description">Select the language model to use for conversations</div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">Server URL</label>
+                    <input type="text" class="setting-input" id="serverUrlInput" placeholder="http://localhost:11434" readonly>
+                    <div class="setting-description">Ollama server URL (read-only)</div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">Current User</label>
+                    <input type="text" class="setting-input" id="currentUserInput" readonly>
+                    <div class="setting-description">Your username</div>
+                </div>
+                
+                <div class="setting-group">
+                    <label class="setting-label">Change Password</label>
+                    <input type="password" class="setting-input" id="oldPasswordInput" placeholder="Current password">
+                    <input type="password" class="setting-input" id="newPasswordInput" placeholder="New password" style="margin-top: 8px;">
+                    <div class="setting-description">Leave blank if you don't want to change your password</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn secondary" id="cancelSettingsBtn">Cancel</button>
+                <button class="modal-btn primary" id="saveSettingsBtn">Save Changes</button>
             </div>
         </div>
     </div>
@@ -627,6 +842,10 @@
         const fileInput = document.getElementById('fileInput');
         const filesList = document.getElementById('filesList');
         const statusSection = document.getElementById('systemStatus');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const settingsModal = document.getElementById('settingsModal');
+        const attachBtn = document.getElementById('attachBtn');
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -675,6 +894,25 @@
                 this.style.height = 'auto';
                 this.style.height = this.scrollHeight + 'px';
             });
+
+            // Settings and logout
+            settingsBtn.addEventListener('click', openSettingsModal);
+            logoutBtn.addEventListener('click', logout);
+            
+            // Attach button (trigger file input)
+            attachBtn.addEventListener('click', () => fileInput.click());
+            
+            // Settings modal events
+            document.getElementById('closeSettingsModal').addEventListener('click', closeSettingsModal);
+            document.getElementById('cancelSettingsBtn').addEventListener('click', closeSettingsModal);
+            document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+            
+            // Close modal on backdrop click
+            settingsModal.addEventListener('click', function(e) {
+                if (e.target === settingsModal) {
+                    closeSettingsModal();
+                }
+            });
         }
 
         function selectMode(mode) {
@@ -707,9 +945,9 @@
         function updateInputPlaceholder() {
             const placeholders = {
                 normal: 'Type your message here...',
-                rag: 'Search your knowledge base...',
-                document: 'Ask questions about your document...',
-                file: 'Ask questions about the selected file...'
+                rag: 'Search existing RAG knowledge base...',
+                document: 'Ask questions about existing docs...',
+                file: 'Ask questions about the provided file...'
             };
             
             messageInput.placeholder = placeholders[currentMode] || placeholders.normal;
@@ -992,14 +1230,21 @@
                     <i class="fas ${getFileIcon(file.file_type)}"></i>
                     <span class="file-name" title="${file.original_name}">${file.original_name}</span>
                     <div class="file-actions">
-                        <button class="file-action-btn" onclick="selectFile('${file.file_id}')" title="Select for analysis">
+                        <button class="file-action-btn select-file-btn" data-file-id="${file.file_id}" title="Select for analysis">
                             <i class="fas fa-check"></i>
                         </button>
-                        <button class="file-action-btn" onclick="deleteFile('${file.file_id}')" title="Delete file">
+                        <button class="file-action-btn delete-file-btn" data-file-id="${file.file_id}" title="Delete file">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 `;
+                
+                // Add event listeners for the buttons
+                const selectBtn = fileDiv.querySelector('.select-file-btn');
+                const deleteBtn = fileDiv.querySelector('.delete-file-btn');
+                
+                selectBtn.addEventListener('click', () => selectFile(file.file_id));
+                deleteBtn.addEventListener('click', () => deleteFile(file.file_id));
                 
                 filesList.appendChild(fileDiv);
             });
@@ -1030,7 +1275,11 @@
                 item.style.backgroundColor = '';
             });
             
-            event.target.closest('.file-item').style.backgroundColor = 'rgba(37, 99, 235, 0.2)';
+            // Find and highlight the selected file
+            const selectedButton = document.querySelector(`[data-file-id="${fileId}"]`);
+            if (selectedButton) {
+                selectedButton.closest('.file-item').style.backgroundColor = 'rgba(37, 99, 235, 0.2)';
+            }
             
             showNotification('File selected for analysis', 'success');
         }
@@ -1112,6 +1361,164 @@
             setTimeout(() => {
                 notification.remove();
             }, 3000);
+        }
+
+        // Settings and user management functions
+        async function logout() {
+            if (!confirm('Are you sure you want to logout?')) {
+                return;
+            }
+
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`
+                    }
+                });
+            } catch (error) {
+                console.log('Logout request failed:', error);
+            }
+
+            // Clear local data and redirect
+            localStorage.removeItem('session_token');
+            localStorage.removeItem('user_data');
+            window.location.href = 'login.html';
+        }
+
+        async function openSettingsModal() {
+            settingsModal.classList.remove('hidden');
+            
+            // Load current settings
+            await loadCurrentSettings();
+            await loadAvailableModels();
+        }
+
+        function closeSettingsModal() {
+            settingsModal.classList.add('hidden');
+            
+            // Clear password fields
+            document.getElementById('oldPasswordInput').value = '';
+            document.getElementById('newPasswordInput').value = '';
+        }
+
+        async function loadCurrentSettings() {
+            try {
+                // Load current user info
+                const userResponse = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${userToken}` }
+                });
+                const userData = await userResponse.json();
+                document.getElementById('currentUserInput').value = userData.user.username;
+
+                // Load current config
+                const configResponse = await fetch('/api/config');
+                const config = await configResponse.json();
+                document.getElementById('serverUrlInput').value = config.ollama_url;
+                
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        async function loadAvailableModels() {
+            try {
+                const response = await fetch('/api/models');
+                const data = await response.json();
+                
+                const modelSelect = document.getElementById('modelSelect');
+                modelSelect.innerHTML = '';
+                
+                if (data.models && data.models.length > 0) {
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = `${model.name} (${model.size})`;
+                        modelSelect.appendChild(option);
+                    });
+                    
+                    // Get current model
+                    const configResponse = await fetch('/api/config');
+                    const config = await configResponse.json();
+                    modelSelect.value = config.model;
+                } else {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No models available';
+                    modelSelect.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Error loading models:', error);
+                const modelSelect = document.getElementById('modelSelect');
+                modelSelect.innerHTML = '<option value="">Error loading models</option>';
+            }
+        }
+
+        async function saveSettings() {
+            try {
+                const modelSelect = document.getElementById('modelSelect');
+                const oldPassword = document.getElementById('oldPasswordInput').value;
+                const newPassword = document.getElementById('newPasswordInput').value;
+                
+                let hasChanges = false;
+                
+                // Update model if changed
+                if (modelSelect.value) {
+                    const configResponse = await fetch('/api/config');
+                    const currentConfig = await configResponse.json();
+                    
+                    if (currentConfig.model !== modelSelect.value) {
+                        const updateResponse = await fetch('/api/config', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${userToken}`
+                            },
+                            body: JSON.stringify({ model: modelSelect.value })
+                        });
+                        
+                        if (updateResponse.ok) {
+                            hasChanges = true;
+                            showNotification('Model updated successfully', 'success');
+                        } else {
+                            throw new Error('Failed to update model');
+                        }
+                    }
+                }
+                
+                // Change password if provided
+                if (oldPassword && newPassword) {
+                    const passwordResponse = await fetch('/api/auth/change-password', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({
+                            old_password: oldPassword,
+                            new_password: newPassword
+                        })
+                    });
+                    
+                    if (passwordResponse.ok) {
+                        hasChanges = true;
+                        showNotification('Password changed successfully', 'success');
+                    } else {
+                        const errorData = await passwordResponse.json();
+                        throw new Error(errorData.error || 'Failed to change password');
+                    }
+                }
+                
+                if (hasChanges) {
+                    // Refresh system status
+                    checkSystemStatus();
+                }
+                
+                closeSettingsModal();
+                
+            } catch (error) {
+                showNotification(`Error: ${error.message}`, 'error');
+            }
         }
 
         // Auto-refresh files every 30 seconds

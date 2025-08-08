@@ -29,9 +29,10 @@ A complete multi-user, offline-capable local LLM system using Ollama with secure
    cd LLM_backbone
    ```
 
-2. **Start the system**
+2. **Install dependencies and start the system**
    ```bash
-   python start.py
+   pip install -r requirements.txt
+   python server.py
    ```
 
 3. **Access the login page**
@@ -194,7 +195,7 @@ print(users.json())
 
 **2. Direct File Configuration:**
 
-Users are stored in `users.json` (created automatically):
+Users are stored in `auth/users.json` (created automatically):
 ```json
 {
   "admin": {
@@ -223,34 +224,20 @@ requests.post('http://localhost:8000/api/auth/change-password',
         'new_password': 'your_new_secure_password'
     })
 
-# Method 2: Admin reset (if you forget password, delete users.json and restart)
+# Method 2: Admin reset (if you forget password, delete auth/users.json and restart)
 ```
 
-**4. Command Line Tool:**
+**4. Web Admin Panel:**
 
-Use `manage_users.py` for easy user management:
-```bash
-# List all users
-python manage_users.py list
-
-# Create new user
-python manage_users.py create john_doe john@company.com --role user --display-name "John Doe"
-
-# Reset user password
-python manage_users.py reset-password john_doe
-
-# Change user password (requires current password)
-python manage_users.py change-password john_doe
-
-# Deactivate user (keeps data but prevents login)
-python manage_users.py deactivate john_doe
-
-# Delete user completely
-python manage_users.py delete john_doe
-
-# View user statistics
-python manage_users.py stats
-```
+User management is handled through the web interface:
+- **Login as admin** - Use admin credentials to access admin features
+- **Admin Panel** - Available through the web interface for admin users
+- **API Endpoints** - Use the REST API endpoints for programmatic user management:
+  - `GET /api/admin/users` - List all users
+  - `POST /api/admin/users` - Create new user
+  - `PUT /api/admin/users/{username}` - Update user
+  - `DELETE /api/admin/users/{username}` - Delete user
+  - `POST /api/admin/users/{username}/reset-password` - Reset password
 
 ### User Roles
 
@@ -270,8 +257,9 @@ python manage_users.py stats
 
 ```
 project_root/
-├── users.json              # User accounts and credentials
-├── user_sessions.json      # Active user sessions
+├── auth/                   # Authentication files
+│   ├── users.json         # User accounts
+│   └── user_sessions.json # Active sessions
 └── conversations/          # Per-user conversation storage
     ├── user-id-1/          # User 1's conversations
     │   ├── session-1.json
@@ -284,23 +272,33 @@ project_root/
 ## File Structure
 
 ```
-LLM_backbone/
+LLM_based_parser/
 ├── README.md                 # This file
 ├── CLAUDE.md                # Development instructions
-├── config.json              # System configuration
 ├── requirements.txt         # Python dependencies
-├── start.py                # Easy startup script
-├── user_management.py       # User authentication system
-├── conversation_memory.py   # Per-user conversation storage
-├── llm_client.py           # Core LLM client
-├── server.py               # Flask API server with auth
-├── index.html              # Main chat interface
-├── login.html              # User login page
-├── users.json              # User accounts (auto-generated)
-├── user_sessions.json      # Active sessions (auto-generated)
-└── conversations/          # Per-user conversation data
-    ├── user-id-1/
-    └── user-id-2/
+├── server.py               # Main application server
+├── setup_system.py         # System setup script
+├── config/
+│   └── config.json         # System configuration
+├── core/                   # Core system modules
+│   ├── conversation_memory.py
+│   ├── llm_client.py
+│   └── user_management.py
+├── src/                    # Source modules
+│   ├── excel_to_md_converter.py
+│   ├── file_handler.py
+│   └── rag_system.py
+├── data/                   # Data directory
+│   ├── chroma_db/         # RAG vector database
+│   ├── combined_data.md   # Combined Excel data
+│   └── *.xlsx             # Original Excel files
+├── uploads/               # File uploads (user-organized)
+├── static/                # Static web files
+│   ├── index.html         # Main chat interface
+│   └── login.html         # Login page
+└── auth/                  # Authentication files
+    ├── users.json         # User accounts (auto-generated)
+    └── user_sessions.json # Active sessions (auto-generated)
 ```
 
 ## Installation Details
@@ -382,7 +380,7 @@ The server is configured to accept connections from other devices on your networ
 
 **Login Issues**
 - Verify default credentials: admin/admin123
-- Check `users.json` file exists and is readable
+- Check `auth/users.json` file exists and is readable
 - Clear browser cache and cookies
 - Ensure JavaScript is enabled
 

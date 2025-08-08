@@ -140,7 +140,7 @@ class RAGSystem:
         self.embedding_function = self._create_embedding_function()
         
         # Initialize ChromaDB client
-        persist_dir = self.collection_config.get("persist_directory", "./chroma_db")
+        persist_dir = self.collection_config.get("persist_directory", "./data/chroma_db")
         self.client = chromadb.PersistentClient(path=persist_dir)
         
         # Get or create collection with custom embedding
@@ -212,7 +212,7 @@ ChromaDB Embedding Function Signature Error:
                 },
                 "collection": {
                     "name": "documents",
-                    "persist_directory": "./chroma_db"
+                    "persist_directory": "./data/chroma_db"
                 },
                 "chunking": {
                     "strategy": "semantic",
@@ -513,7 +513,7 @@ ChromaDB Embedding Function Signature Error:
                 return {
                     "document_count": 0,
                     "collection_name": self.collection_config.get("name", "documents"),
-                    "persist_directory": self.collection_config.get("persist_directory", "./chroma_db"),
+                    "persist_directory": self.collection_config.get("persist_directory", "./data/chroma_db"),
                     "embedding_model": self.embedding_config.get("model", "nomic-embed-text:latest"),
                     "embedding_provider": self.embedding_config.get("provider", "ollama"),
                     "status": "not_initialized"
@@ -523,7 +523,7 @@ ChromaDB Embedding Function Signature Error:
             return {
                 "document_count": count,
                 "collection_name": self.collection_config.get("name", "documents"),
-                "persist_directory": self.collection_config.get("persist_directory", "./chroma_db"),
+                "persist_directory": self.collection_config.get("persist_directory", "./data/chroma_db"),
                 "embedding_model": self.embedding_config.get("model", "nomic-embed-text:latest"),
                 "embedding_provider": self.embedding_config.get("provider", "ollama"),
                 "status": "active"
@@ -590,9 +590,9 @@ def main():
         return
     
     # Check if combined_data.md exists
-    if Path("combined_data.md").exists():
-        print("Ingesting combined_data.md into RAG system...")
-        success = rag.ingest_document("combined_data.md")
+    if Path("data/combined_data.md").exists():
+        print("Ingesting data/combined_data.md into RAG system...")
+        success = rag.ingest_document("data/combined_data.md")
         
         if success:
             # Show collection stats
@@ -611,7 +611,7 @@ def main():
                 print(f"Distance: {result['distance']}")
         
     else:
-        print("combined_data.md not found. Please run excel_to_md_converter.py first.")
+        print("data/combined_data.md not found. Please run excel_to_md_converter.py first.")
 
 if __name__ == "__main__":
     main()

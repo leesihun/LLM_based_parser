@@ -8,7 +8,7 @@ Based on the requirements in CLAUDE.md, I have successfully implemented all requ
 - **Excel to Markdown Converter** (`src/excel_to_md_converter.py`)
   - Automatically finds all .xlsx files in the `data/` directory
   - Converts each Excel file (all sheets) to structured Markdown format
-  - Combines all files into `combined_data.md`
+  - Combines all files into `data/combined_data.md`
   - Handles Korean filenames and content properly
   - Creates clean table structures with proper escaping
 
@@ -17,7 +17,7 @@ Based on the requirements in CLAUDE.md, I have successfully implemented all requ
   - Uses ChromaDB for vector storage and retrieval
   - Intelligent text chunking with overlap for better context
   - Metadata extraction for improved search results
-  - Persistent storage in `chroma_db/` directory
+  - Persistent storage in `data/chroma_db/` directory
   - Search and context generation for LLM queries
 
 ### 3. Web UI Enhancements ✅
@@ -56,8 +56,10 @@ All files are properly organized as requested:
 │   ├── rag_system.py
 │   └── file_handler.py
 ├── uploads/                # File uploads (user-organized)
-├── chroma_db/             # RAG vector database
-├── data/                  # Original Excel files
+├── data/                  # Data directory
+│   ├── chroma_db/         # RAG vector database
+│   ├── combined_data.md   # Combined Excel data
+│   └── *.xlsx             # Original Excel files
 ├── auth/                  # Authentication (ready for future use)
 ├── server.py              # Enhanced with new endpoints
 ├── index_enhanced.html    # New enhanced web interface

@@ -12,7 +12,7 @@ import logging
 class ExcelToMarkdownConverter:
     """Handles conversion of Excel files to combined Markdown format"""
     
-    def __init__(self, data_dir="data", output_file="combined_data.md"):
+    def __init__(self, data_dir="data", output_file="data/combined_data.md"):
         """
         Initialize converter
         

@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Any
 class UserManager:
     """Manages user accounts, authentication, and sessions"""
     
-    def __init__(self, users_file: str = "users.json", sessions_file: str = "user_sessions.json"):
+    def __init__(self, users_file: str = "auth/users.json", sessions_file: str = "auth/user_sessions.json"):
         self.users_file = users_file
         self.sessions_file = sessions_file
         self.users: Dict[str, Dict] = {}
@@ -47,6 +47,8 @@ class UserManager:
     def _save_users(self):
         """Save users to file"""
         try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.users_file), exist_ok=True)
             with open(self.users_file, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -65,6 +67,8 @@ class UserManager:
     def _save_sessions(self):
         """Save sessions to file"""
         try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.sessions_file), exist_ok=True)
             with open(self.sessions_file, 'w', encoding='utf-8') as f:
                 json.dump(self.sessions, f, ensure_ascii=False, indent=2)
         except Exception as e:

@@ -12,7 +12,8 @@
       "Bash(move ui_modern.html index.html)",
       "Bash(mv:*)",
       "Bash(del:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(move:*)"
     ],
     "deny": []
   }

@@ -38,10 +38,9 @@ def setup_directories():
         "src",
         "core", 
         "config",
-        "scripts",
         "auth", 
         "uploads",
-        "chroma_db",
+        "data/chroma_db",
         "data"
     ]
     
@@ -79,8 +78,8 @@ def setup_rag_system():
         rag = RAGSystem()
         
         # Check if combined_data.md exists
-        if not Path("combined_data.md").exists():
-            print("ERROR: combined_data.md not found. Please run Excel conversion first.")
+        if not Path("data/combined_data.md").exists():
+            print("ERROR: data/combined_data.md not found. Please run Excel conversion first.")
             return False
         
         # Try to reinitialize collection to fix any existing issues
@@ -89,7 +88,7 @@ def setup_rag_system():
             rag.reinitialize_collection()
         
         # Ingest the document
-        success = rag.ingest_document("combined_data.md", force_reload=True)
+        success = rag.ingest_document("data/combined_data.md", force_reload=True)
         
         if success:
             stats = rag.get_collection_stats()
@@ -107,14 +106,14 @@ def setup_rag_system():
         # Try to clear the ChromaDB directory and retry
         try:
             import shutil
-            chroma_path = Path("./chroma_db")
+            chroma_path = Path("./data/chroma_db")
             if chroma_path.exists():
                 shutil.rmtree(chroma_path)
                 print("Cleared ChromaDB directory")
                 
             # Retry initialization
             rag = RAGSystem()
-            success = rag.ingest_document("combined_data.md", force_reload=True)
+            success = rag.ingest_document("data/combined_data.md", force_reload=True)
             
             if success:
                 stats = rag.get_collection_stats()
@@ -136,7 +135,7 @@ def verify_system():
     checks = []
     
     # Check if combined_data.md exists
-    if Path("combined_data.md").exists():
+    if Path("data/combined_data.md").exists():
         checks.append(("Combined markdown file", True))
     else:
         checks.append(("Combined markdown file", False))
@@ -167,7 +166,7 @@ def verify_system():
         checks.append(("RAG embedding model", embedding_available))
         
         # Check if documents exist without creating RAG system
-        combined_data_exists = Path("combined_data.md").exists()
+        combined_data_exists = Path("data/combined_data.md").exists()
         checks.append(("RAG system", combined_data_exists))
         
     except Exception as e:
@@ -175,7 +174,7 @@ def verify_system():
         checks.append(("RAG system", False))
     
     # Check required directories
-    required_dirs = ["src", "uploads", "chroma_db"]
+    required_dirs = ["src", "uploads", "data/chroma_db"]
     for dir_name in required_dirs:
         checks.append((f"Directory: {dir_name}", Path(dir_name).exists()))
     

@@ -60,12 +60,12 @@ def require_admin(f):
 @app.route('/')
 def serve_index():
     """Serve the main HTML page"""
-    return send_from_directory('.', 'index.html')
+    return send_from_directory('static', 'index.html')
 
 @app.route('/login.html')
 def serve_login():
     """Serve the login page"""
-    return send_from_directory('.', 'login.html')
+    return send_from_directory('static', 'login.html')
 
 # Authentication Endpoints
 
@@ -485,12 +485,12 @@ def read_markdown_document():
         user_id = request.user['user_id']
         
         # Check if combined_data.md exists
-        if not os.path.exists('combined_data.md'):
+        if not os.path.exists('data/combined_data.md'):
             return jsonify({'error': 'Combined data document not found. Please generate it first.'}), 404
         
         # Read the document
         try:
-            with open('combined_data.md', 'r', encoding='utf-8') as f:
+            with open('data/combined_data.md', 'r', encoding='utf-8') as f:
                 document_content = f.read()
         except Exception as e:
             return jsonify({'error': f'Error reading document: {str(e)}'}), 500
@@ -507,7 +507,7 @@ def read_markdown_document():
         # Create enhanced prompt with document content
         enhanced_message = f"""Document Reading Request:
 
-Document: combined_data.md
+Document: data/combined_data.md
 Content Length: {len(document_content)} characters
 
 Document Content:
@@ -518,7 +518,7 @@ User Question: {user_question}
 Please analyze the document content and answer the user's question."""
         
         # Add user message to conversation memory
-        memory.add_message(session_id, 'user', f"[Document Reading] combined_data.md: {user_question}")
+        memory.add_message(session_id, 'user', f"[Document Reading] data/combined_data.md: {user_question}")
         
         # Generate response
         response = llm_client.generate_response(enhanced_message)
@@ -530,7 +530,7 @@ Please analyze the document content and answer the user's question."""
             'response': response,
             'session_id': session_id,
             'document_info': {
-                'name': 'combined_data.md',
+                'name': 'data/combined_data.md',
                 'size': len(document_content)
             }
         })

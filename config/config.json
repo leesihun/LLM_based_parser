@@ -22,7 +22,7 @@
     },
     "collection": {
       "name": "documents",
-      "persist_directory": "./chroma_db"
+      "persist_directory": "./data/chroma_db"
     },
     "chunking": {
       "strategy": "semantic",
