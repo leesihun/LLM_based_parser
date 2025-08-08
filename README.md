@@ -532,10 +532,18 @@ You have access to the team's knowledge base. Use the provided context to answer
   },
   "system_prompt": {
     "enabled": true,        // Enable/disable system prompts
-    "default": "Your default system prompt here...",
-    "rag_mode": "System prompt for RAG searches...",
-    "document_mode": "System prompt for document analysis...",
-    "file_mode": "System prompt for file analysis..."
+    "universal": "Base prompt for all modes...",
+    "default": "Additional prompt for normal chat...",
+    "rag_mode": "Additional prompt for RAG searches...",
+    "document_mode": "Additional prompt for document analysis...",
+    "file_mode": "Additional prompt for file analysis...",
+    "search_mode": "Additional prompt for web search..."
+  },
+  "web_search": {
+    "enabled": true,        // Enable/disable web search
+    "max_results": 5,       // Maximum search results to return
+    "timeout": 10,          // Search timeout in seconds
+    "user_agent": "Mozilla/5.0..."  // User agent string
   }
 }
 ```
