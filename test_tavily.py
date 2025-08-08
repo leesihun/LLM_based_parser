@@ -13,16 +13,35 @@ from typing import List, Dict, Optional, Any
 class TavilyTester:
     """Test Tavily Search API"""
     
-    def __init__(self, api_key: str):
-        """Initialize with Tavily API key"""
+    def __init__(self, api_key: str, proxy_config: Optional[Dict[str, str]] = None):
+        """Initialize with Tavily API key and optional proxy configuration"""
         self.api_key = api_key
         self.base_url = "https://api.tavily.com"
         self.session = requests.Session()
+        
+        # Configure proxy if provided
+        if proxy_config:
+            print(f"🌐 Configuring proxy: {proxy_config}")
+            self.session.proxies.update(proxy_config)
+            
+        # Configure session with retry strategy
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Content-Type': 'application/json'
         })
-        self.timeout = 30
+        self.timeout = 60  # Increased timeout for proxy environments
         self.test_queries = [
             "Python programming tutorial",
             "artificial intelligence latest news",
@@ -394,6 +413,53 @@ class TavilyTester:
             'overall_status': 'WORKING' if successful_tests > 0 else 'FAILED'
         }
 
+def detect_proxy_settings():
+    """Detect proxy settings from environment variables"""
+    import os
+    
+    proxy_config = {}
+    
+    # Check common proxy environment variables
+    http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+    
+    if http_proxy:
+        proxy_config['http'] = http_proxy
+    if https_proxy:
+        proxy_config['https'] = https_proxy
+        
+    return proxy_config if proxy_config else None
+
+def get_manual_proxy_config():
+    """Get manual proxy configuration from user"""
+    print("\n🌐 PROXY CONFIGURATION")
+    print("=" * 40)
+    print("Enter your company's proxy settings:")
+    print("(Leave blank if you don't know or want to skip)")
+    print()
+    
+    proxy_host = input("Proxy Host (e.g., proxy.company.com): ").strip()
+    if not proxy_host:
+        return None
+        
+    proxy_port = input("Proxy Port (e.g., 8080): ").strip()
+    if not proxy_port:
+        proxy_port = "8080"
+    
+    username = input("Username (optional): ").strip()
+    password = input("Password (optional): ").strip()
+    
+    # Build proxy URL
+    if username and password:
+        proxy_url = f"http://{username}:{password}@{proxy_host}:{proxy_port}"
+    else:
+        proxy_url = f"http://{proxy_host}:{proxy_port}"
+    
+    return {
+        'http': proxy_url,
+        'https': proxy_url
+    }
+
 def main():
     """Main function"""
     # Use the provided API key
@@ -405,7 +471,31 @@ def main():
         print("Make sure to set the API key in the script")
         sys.exit(1)
     
-    tester = TavilyTester(api_key)
+    print("🔍 TAVILY API TESTER")
+    print("=" * 40)
+    print("Detecting proxy configuration...")
+    
+    # Try to detect proxy settings
+    proxy_config = detect_proxy_settings()
+    
+    if proxy_config:
+        print(f"✅ Auto-detected proxy: {proxy_config}")
+        use_detected = input("Use detected proxy? (y/n): ").strip().lower()
+        if use_detected != 'y':
+            proxy_config = None
+    
+    if not proxy_config:
+        print("❌ No proxy auto-detected")
+        manual_setup = input("Configure proxy manually? (y/n): ").strip().lower()
+        if manual_setup == 'y':
+            proxy_config = get_manual_proxy_config()
+    
+    if not proxy_config:
+        print("⚠️  No proxy configured - trying direct connection...")
+        print("If you get connection errors, restart and configure proxy settings.")
+        print()
+    
+    tester = TavilyTester(api_key, proxy_config)
     
     try:
         results = tester.run_comprehensive_test()

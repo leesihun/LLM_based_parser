@@ -500,7 +500,21 @@ You have access to the team's knowledge base. Use the provided context to answer
 
 ## Recent Updates
 
-### Version 1.2 (Latest)
+### Version 1.2.1 (Latest - December 19, 2024)
+- **Tavily API Integration**: Added comprehensive Tavily search API testing and integration
+- **Corporate Proxy Support**: Full proxy configuration support for corporate environments
+- **Interactive Setup Tools**: Multiple proxy configuration methods (interactive, config-based, environment variables)
+- **Connectivity Testing**: Comprehensive network and API connectivity testing tools
+- **Integration Guides**: Complete setup guides and troubleshooting documentation
+
+**New Testing Tools:**
+- `test_tavily.py` - Comprehensive Tavily API tester with proxy support
+- `test_tavily_simple.py` - Interactive proxy setup and testing
+- `test_tavily_with_config.py` - Configuration file-based testing
+- `proxy_config.json` - Easy proxy configuration template
+- `PROXY_SETUP_GUIDE.md` - Complete proxy setup and troubleshooting guide
+
+### Version 1.2 (December 2024)
 - **Internet Search**: Added web search functionality using DuckDuckGo
 - **Search Mode**: New search mode in the frontend for current web information
 - **Array System Prompts**: Support for array format in system prompt configuration
@@ -642,6 +656,29 @@ This will test all search providers and diagnose connectivity issues.
 **Issue: Corporate network/proxy**
 - **Solution**: Configure proxy settings or use manual fallback
 - **Fix**: Set `providers: ["manual"]` for manual search links
+
+#### 3. **Testing Tavily API (New)**
+
+For testing the new Tavily search API integration:
+
+**Quick Test:**
+```bash
+python test_tavily_with_config.py
+```
+
+**Interactive Setup:**
+```bash
+python test_tavily_simple.py
+```
+
+**Corporate Proxy Issues:**
+1. Edit `proxy_config.json` with your company's proxy settings
+2. Run the configuration-based tester
+3. See `PROXY_SETUP_GUIDE.md` for detailed troubleshooting
+
+**Common Proxy Formats:**
+- No auth: `http://proxy.company.com:8080`
+- With auth: `http://username:password@proxy.company.com:8080`
 
 #### 3. **Alternative Configurations**
 
