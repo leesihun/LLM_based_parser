@@ -548,6 +548,143 @@ You have access to the team's knowledge base. Use the provided context to answer
 }
 ```
 
+## Web Search Feature
+
+### Overview
+The system now includes real-time internet search capabilities using DuckDuckGo, allowing the AI to provide current and up-to-date information.
+
+### How It Works
+1. **User Query**: User asks a question in search mode
+2. **Web Search**: System automatically searches DuckDuckGo for relevant results
+3. **Context Integration**: Search results are provided to the AI as context
+4. **Enhanced Response**: AI responds using both its knowledge and current web information
+
+### Configuration
+```json
+{
+  "web_search": {
+    "enabled": true,        // Enable/disable web search
+    "max_results": 5,       // Maximum search results per query
+    "timeout": 10,          // Search timeout in seconds
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  }
+}
+```
+
+### API Endpoints
+- `POST /api/search/web` - Direct web search (returns raw results)
+- `POST /api/search/chat` - Search with AI integration (returns AI response with web context)
+
+### Usage Examples
+
+**Direct Search:**
+```bash
+curl -X POST http://localhost:8000/api/search/web \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"query": "latest AI developments 2024", "max_results": 3}'
+```
+
+**Search with AI Integration:**
+```bash
+curl -X POST http://localhost:8000/api/search/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"message": "What are the latest AI developments?", "session_id": "your_session"}'
+```
+
+### Features
+- **No API Keys Required**: Uses DuckDuckGo which doesn't require registration
+- **Privacy Focused**: DuckDuckGo doesn't track users
+- **Fallback Mechanisms**: Multiple search methods for reliability
+- **Rate Limiting**: Built-in timeout and error handling
+- **Source Citation**: AI responses include source URLs when available
+
+### Limitations
+- **No Real-time Updates**: Search results are fetched at query time, not continuously
+- **Rate Limits**: Subject to search provider rate limiting
+- **Content Filtering**: Some content may be filtered by search providers
+- **Language**: Primarily optimized for English searches
+- **Network Dependencies**: Requires internet access and may be affected by firewalls/proxies
+
+### Troubleshooting Search Issues
+
+If web search is not working in your environment, try these solutions:
+
+#### 1. **Run Diagnostic Tool**
+```bash
+python test_search.py
+```
+This will test all search providers and diagnose connectivity issues.
+
+#### 2. **Common Issues & Solutions**
+
+**Issue: "All search providers are currently unavailable"**
+- **Solution**: Check internet connection and firewall settings
+- **Check**: Run `ping google.com` to verify basic connectivity
+- **Fix**: Allow Python to access the internet through firewall
+
+**Issue: "DuckDuckGo search error"**
+- **Solution**: DuckDuckGo may be blocked in your region/network
+- **Fix**: Change provider order in config.json to use Bing first:
+```json
+{
+  "web_search": {
+    "providers": ["bing", "duckduckgo", "manual"]
+  }
+}
+```
+
+**Issue: "Bing search error"**
+- **Solution**: Bing may be blocking automated requests
+- **Fix**: Try different user agent or enable Google Custom Search
+
+**Issue: Corporate network/proxy**
+- **Solution**: Configure proxy settings or use manual fallback
+- **Fix**: Set `providers: ["manual"]` for manual search links
+
+#### 3. **Alternative Configurations**
+
+**For restricted networks:**
+```json
+{
+  "web_search": {
+    "enabled": true,
+    "providers": ["manual"],
+    "timeout": 5
+  }
+}
+```
+
+**For Google Custom Search (requires API key):**
+```json
+{
+  "web_search": {
+    "providers": ["google_custom", "bing", "manual"],
+    "google_api_key": "YOUR_API_KEY",
+    "google_search_engine_id": "YOUR_SEARCH_ENGINE_ID"
+  }
+}
+```
+
+**For maximum reliability:**
+```json
+{
+  "web_search": {
+    "providers": ["bing", "duckduckgo", "google_custom", "manual"],
+    "timeout": 15,
+    "max_results": 3
+  }
+}
+```
+
+#### 4. **Getting Google Custom Search API**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Custom Search API
+3. Create API key
+4. Create Custom Search Engine at [cse.google.com](https://cse.google.com/)
+5. Add credentials to config.json
+
 ## Contributing
 
 1. Fork the repository
