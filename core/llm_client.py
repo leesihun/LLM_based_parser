@@ -66,8 +66,9 @@ class LLMClient:
         except json.JSONDecodeError:
             return "Error: Invalid response from Ollama"
     
-    def chat_completion(self, messages: list) -> str:
-        """Chat completion using Ollama chat API"""
+    def chat_completion(self, messages: list) -> dict:
+        """Chat completion using Ollama chat API with timing metrics"""
+        import time
         url = f"{self.ollama_url}/api/chat"
         
         payload = {
@@ -83,20 +84,49 @@ class LLMClient:
         }
         
         try:
+            start_time = time.time()
             response = requests.post(
                 url, 
                 json=payload, 
                 timeout=self.timeout / 1000
             )
+            end_time = time.time()
+            processing_time_ms = (end_time - start_time) * 1000
+            
             response.raise_for_status()
             
             result = response.json()
-            return result.get("message", {}).get("content", "No response received")
+            response_content = result.get("message", {}).get("content", "No response received")
+            
+            # Calculate tokens per second if available
+            tokens_per_second = 0
+            if 'eval_count' in result and 'eval_duration' in result:
+                tokens_per_second = result['eval_count'] / (result['eval_duration'] / 1000000000)
+            
+            return {
+                'content': response_content,
+                'processing_time': processing_time_ms,
+                'tokens_per_second': tokens_per_second,
+                'eval_count': result.get('eval_count', 0),
+                'eval_duration': result.get('eval_duration', 0)
+            }
             
         except requests.RequestException as e:
-            return f"Error communicating with Ollama: {str(e)}"
+            return {
+                'content': f"Error communicating with Ollama: {str(e)}",
+                'processing_time': 0,
+                'tokens_per_second': 0,
+                'eval_count': 0,
+                'eval_duration': 0
+            }
         except json.JSONDecodeError:
-            return "Error: Invalid response from Ollama"
+            return {
+                'content': "Error: Invalid response from Ollama",
+                'processing_time': 0,
+                'tokens_per_second': 0,
+                'eval_count': 0,
+                'eval_duration': 0
+            }
     
     def list_models(self) -> list:
         """List available models from Ollama"""

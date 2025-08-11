@@ -196,6 +196,62 @@
             background: rgba(255, 255, 255, 0.1);
         }
 
+        /* Search Context Styles */
+        .search-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .keyword-tag {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .search-result-item {
+            margin-bottom: 8px;
+            padding: 6px;
+            background: rgba(55, 65, 81, 0.1);
+            border-radius: 4px;
+            border-left: 2px solid rgba(34, 197, 94, 0.4);
+        }
+
+        .search-result-title {
+            font-weight: 500;
+            color: #ffffff;
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+
+        .search-result-title a {
+            color: #60a5fa;
+            text-decoration: none;
+            display: block;
+            word-break: break-word;
+        }
+
+        .search-result-title a:hover {
+            text-decoration: underline;
+        }
+
+        .search-result-snippet {
+            color: #9ca3af;
+            font-size: 11px;
+            line-height: 1.3;
+            margin-top: 3px;
+        }
+
+        .search-result-source {
+            color: #64748b;
+            font-size: 10px;
+            margin-top: 2px;
+        }
+
         /* Main Content Area */
         .main-content {
             margin-left: 320px;
@@ -280,6 +336,12 @@
             font-size: 12px;
             font-weight: 500;
             border: 1px solid;
+        }
+
+        .mode-indicator.normal-active {
+            background: rgba(156, 163, 175, 0.1);
+            border-color: rgba(156, 163, 175, 0.3);
+            color: #9ca3af;
         }
 
         .mode-indicator.rag-active {
@@ -690,26 +752,30 @@
     <div class="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-title">HE Team LLM Assistant</div>
-            <div class="sidebar-subtitle">Enhanced with RAG & File Processing</div>
+            <div class="sidebar-subtitle">v.1.0.1, '25/08/12</div>
         </div>
 
         <!-- Features Section -->
         <div class="features-section">
-            <div class="features-title">AI Capabilities</div>
+            <div class="features-title">CHAT MODES</div>
             <div class="feature-buttons">
-                <button class="feature-btn" id="ragModeBtn">
+                <button class="feature-btn mode-btn" id="normalModeBtn" data-mode="normal">
+                    <i class="fas fa-comments"></i>
+                    <span>Normal Chat</span>
+                </button>
+                <button class="feature-btn mode-btn" id="ragModeBtn" data-mode="rag">
                     <i class="fas fa-search"></i>
                     <span>Existing RAG Search</span>
                 </button>
-                <button class="feature-btn" id="documentModeBtn">
+                <button class="feature-btn mode-btn" id="documentModeBtn" data-mode="document">
                     <i class="fas fa-book-open"></i>
                     <span>Read Existing Docs</span>
                 </button>
-                <button class="feature-btn" id="fileModeBtn">
+                <button class="feature-btn mode-btn" id="fileModeBtn" data-mode="file">
                     <i class="fas fa-file-alt"></i>
                     <span>Analyze Provided File</span>
                 </button>
-                <button class="feature-btn" id="searchModeBtn">
+                <button class="feature-btn mode-btn" id="searchModeBtn" data-mode="search">
                     <i class="fas fa-globe"></i>
                     <span>Web Search</span>
                 </button>
@@ -738,6 +804,17 @@
             <div class="features-title">System Status</div>
             <div id="systemStatus" style="font-size: 13px; color: #9ca3af;">
                 Initializing...
+            </div>
+        </div>
+
+        <!-- Search Context Section -->
+        <div class="features-section" id="searchContextSection" style="display: none;">
+            <div class="features-title">Search Context</div>
+            <div id="searchKeywords" style="font-size: 12px; margin-bottom: 8px; color: #64748b;">
+                <!-- Keywords will be displayed here -->
+            </div>
+            <div id="searchResults" style="font-size: 12px; max-height: 300px; overflow-y: auto;">
+                <!-- Search results will be displayed here -->
             </div>
         </div>
     </div>
@@ -865,6 +942,11 @@
         let selectedFileId = null;
         let userToken = localStorage.getItem('session_token');
         
+        // Performance metrics
+        let lastResponseTime = 0;
+        let lastTokensPerSecond = 0;
+        let lastProcessingTime = 0;
+        
         // Check authentication on page load
         if (!userToken) {
             window.location.href = 'login.html';
@@ -938,12 +1020,12 @@
                 });
             });
 
-            // Feature buttons
-            document.getElementById('ragModeBtn').addEventListener('click', () => selectMode('rag'));
-            document.getElementById('documentModeBtn').addEventListener('click', () => selectMode('document'));
-            document.getElementById('fileModeBtn').addEventListener('click', () => selectMode('file'));
-            document.getElementById('searchModeBtn').addEventListener('click', () => selectMode('search'));
-            document.getElementById('enhancedSearchBtn').addEventListener('click', () => selectMode('enhanced_search'));
+            // Feature buttons are handled by the generic mode button handler above
+
+            // Action buttons
+            newChatBtn.addEventListener('click', startNewChat);
+            settingsBtn.addEventListener('click', openSettingsModal);
+            logoutBtn.addEventListener('click', logout);
 
             // File upload
             uploadArea.addEventListener('click', () => fileInput.click());
@@ -958,10 +1040,7 @@
                 this.style.height = this.scrollHeight + 'px';
             });
 
-            // Settings, new chat, and logout
-            settingsBtn.addEventListener('click', openSettingsModal);
-            logoutBtn.addEventListener('click', logout);
-            newChatBtn.addEventListener('click', startNewChat);
+            // Action buttons already handled above in setupEventListeners
             
             // Attach button (trigger file input)
             attachBtn.addEventListener('click', () => fileInput.click());
@@ -992,12 +1071,21 @@
 
             // Update placeholder text
             updateInputPlaceholder();
+
+            // Handle search context display
+            if (mode === 'search') {
+                // Context will be shown when search is performed
+            } else {
+                clearSearchContext();
+            }
         }
 
         function updateModeIndicators() {
             modeIndicators.innerHTML = '';
             
-            if (currentMode === 'rag') {
+            if (currentMode === 'normal') {
+                modeIndicators.innerHTML = '<div class="mode-indicator normal-active"><i class="fas fa-comments"></i> Normal Chat</div>';
+            } else if (currentMode === 'rag') {
                 modeIndicators.innerHTML = '<div class="mode-indicator rag-active"><i class="fas fa-search"></i> RAG Active</div>';
             } else if (currentMode === 'document') {
                 modeIndicators.innerHTML = '<div class="mode-indicator document-active"><i class="fas fa-book-open"></i> Document Mode</div>';
@@ -1036,6 +1124,7 @@
 
             try {
                 let response;
+                const startTime = Date.now();
                 
                 switch (currentMode) {
                     case 'rag':
@@ -1057,6 +1146,9 @@
                         response = await sendNormalMessage(message);
                 }
 
+                const endTime = Date.now();
+                const totalResponseTime = endTime - startTime;
+                
                 hideLoading(loadingId);
                 
                 if (response && response.response) {
@@ -1064,6 +1156,12 @@
                     if (response.session_id) {
                         sessionId = response.session_id;
                     }
+                    
+                    // Calculate and update performance metrics
+                    const tokensPerSecond = response.tokens_per_second || calculateTokensPerSecond(response.response, totalResponseTime);
+                    const processingTime = response.search_processing_time || response.processing_time || 0;
+                    updatePerformanceMetrics(totalResponseTime, tokensPerSecond, processingTime);
+                    
                 } else {
                     addMessage('assistant', 'Sorry, I encountered an error processing your request.');
                 }
@@ -1177,7 +1275,14 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            return await response.json();
+            const result = await response.json();
+            
+            // Get and display search context if available
+            if (result.keyword_extraction_used && result.optimized_queries) {
+                await displaySearchContextForMessage(message, result.optimized_queries, result.successful_query);
+            }
+
+            return result;
         }
 
         async function sendEnhancedSearchMessage(message) {
@@ -1462,14 +1567,31 @@
                     ragStatus = 'Not ready';
                 }
                 
+                const llmStatusIcon = health.status === 'healthy' ? '✅' : 
+                                    health.status === 'ollama_unreachable' ? '🔸' : '❌';
+                const llmStatusText = health.status === 'ollama_unreachable' ? 'Ollama Unreachable' : 
+                                    health.status === 'error' ? 'Error' : 'Ready';
+                
+                // Format performance metrics
+                const responseTimeText = lastResponseTime > 0 ? `${lastResponseTime}ms` : 'N/A';
+                const tokensPerSecText = lastTokensPerSecond > 0 ? `${lastTokensPerSecond.toFixed(1)} tok/s` : 'N/A';
+                const processingTimeText = lastProcessingTime > 0 ? `${lastProcessingTime}ms` : 'N/A';
+                
                 statusSection.innerHTML = `
-                    <div style="margin-bottom: 4px;">LLM: ${health.status === 'healthy' ? '✅' : '❌'} ${health.model}</div>
+                    <div style="margin-bottom: 4px;">LLM: ${llmStatusIcon} ${health.model || 'Unknown'} (${llmStatusText})</div>
                     <div style="margin-bottom: 4px;">RAG: ${ragStatus}</div>
+                    <div style="margin-bottom: 4px;">Web Search: ${health.web_search_enabled ? '✅ Enabled' : '❌ Disabled'}</div>
+                    <div style="margin-bottom: 4px;">Keywords: ${health.keyword_extraction_enabled ? '✅ Enabled' : '❌ Disabled'}</div>
+                    <div style="margin-bottom: 4px;">Response Time: ${responseTimeText}</div>
+                    <div style="margin-bottom: 4px;">Speed: ${tokensPerSecText}</div>
+                    <div style="margin-bottom: 4px;">Processing: ${processingTimeText}</div>
                     <div>Server: ${health.ollama_url}</div>
+                    ${health.error ? `<div style="color: #ef4444; margin-top: 4px; font-size: 12px;">Error: ${health.error}</div>` : ''}
                 `;
                 
             } catch (error) {
-                statusSection.innerHTML = `<div class="text-error">System check failed</div>`;
+                console.error('System status check failed:', error);
+                statusSection.innerHTML = `<div class="text-error">System check failed: ${error.message || 'Unknown error'}</div>`;
             }
         }
 
@@ -1572,7 +1694,7 @@
                 // Load current config
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
-                document.getElementById('serverUrlInput').value = config.ollama_url;
+                document.getElementById('serverUrlInput').value = config.ollama?.host || 'Unknown';
                 
             } catch (error) {
                 console.error('Error loading settings:', error);
@@ -1598,7 +1720,7 @@
                     // Get current model
                     const configResponse = await fetch('/api/config');
                     const config = await configResponse.json();
-                    modelSelect.value = config.model;
+                    modelSelect.value = config.ollama?.model || '';
                 } else {
                     const option = document.createElement('option');
                     option.value = '';
@@ -1625,7 +1747,7 @@
                     const configResponse = await fetch('/api/config');
                     const currentConfig = await configResponse.json();
                     
-                    if (currentConfig.model !== modelSelect.value) {
+                    if (currentConfig.ollama?.model !== modelSelect.value) {
                         const updateResponse = await fetch('/api/config', {
                             method: 'POST',
                             headers: {
@@ -1677,6 +1799,115 @@
             } catch (error) {
                 showNotification(`Error: ${error.message}`, 'error');
             }
+        }
+
+        // Performance measurement functions
+        function updatePerformanceMetrics(responseTime, tokensPerSecond = 0, processingTime = 0) {
+            lastResponseTime = Math.round(responseTime);
+            lastTokensPerSecond = tokensPerSecond;
+            lastProcessingTime = Math.round(processingTime);
+            
+            // Update status display
+            checkSystemStatus();
+        }
+
+        function calculateTokensPerSecond(responseText, responseTimeMs) {
+            if (!responseText || responseTimeMs <= 0) return 0;
+            
+            // Rough estimation: average 4 characters per token
+            const estimatedTokens = responseText.length / 4;
+            const responseTimeSeconds = responseTimeMs / 1000;
+            return estimatedTokens / responseTimeSeconds;
+        }
+
+        // Search Context Display Functions
+        function showSearchContext() {
+            const searchContextSection = document.getElementById('searchContextSection');
+            searchContextSection.style.display = 'block';
+        }
+
+        function hideSearchContext() {
+            const searchContextSection = document.getElementById('searchContextSection');
+            searchContextSection.style.display = 'none';
+        }
+
+        async function displaySearchContextForMessage(originalMessage, optimizedQueries, successfulQuery) {
+            try {
+                // Get actual search results to display
+                const searchResponse = await fetch('/api/search/web', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${userToken}`
+                    },
+                    body: JSON.stringify({
+                        query: successfulQuery || optimizedQueries[0],
+                        max_results: 5
+                    })
+                });
+
+                if (searchResponse.ok) {
+                    const searchData = await searchResponse.json();
+                    displaySearchContext(originalMessage, optimizedQueries, successfulQuery, searchData.results);
+                }
+            } catch (error) {
+                console.error('Error fetching search results for context:', error);
+                // Still show keywords even if we can't get results
+                displaySearchContext(originalMessage, optimizedQueries, successfulQuery, []);
+            }
+        }
+
+        function displaySearchContext(originalMessage, optimizedQueries, successfulQuery, searchResults) {
+            const searchKeywordsDiv = document.getElementById('searchKeywords');
+            const searchResultsDiv = document.getElementById('searchResults');
+            
+            // Extract keywords from the successful query
+            const keywords = successfulQuery ? successfulQuery.split(' ') : optimizedQueries[0].split(' ');
+            
+            // Display keywords
+            searchKeywordsDiv.innerHTML = `
+                <div style="font-weight: 500; margin-bottom: 6px; color: #ffffff;">Search Keywords:</div>
+                <div class="search-keywords">
+                    ${keywords.map(keyword => `<span class="keyword-tag">${keyword}</span>`).join('')}
+                </div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">
+                    Original: "${originalMessage.substring(0, 60)}${originalMessage.length > 60 ? '...' : ''}"
+                </div>
+                <div style="font-size: 10px; color: #64748b;">
+                    Optimized: "${successfulQuery || optimizedQueries[0]}"
+                </div>
+            `;
+
+            // Display search results
+            if (searchResults && searchResults.length > 0) {
+                searchResultsDiv.innerHTML = `
+                    <div style="font-weight: 500; margin-bottom: 8px; color: #ffffff;">Search Results:</div>
+                    ${searchResults.map(result => `
+                        <div class="search-result-item">
+                            <div class="search-result-title">
+                                <a href="${result.url}" target="_blank" rel="noopener noreferrer">${result.title}</a>
+                            </div>
+                            ${result.snippet ? `<div class="search-result-snippet">${result.snippet}</div>` : ''}
+                            <div class="search-result-source">${result.source || 'Web'}</div>
+                        </div>
+                    `).join('')}
+                `;
+            } else {
+                searchResultsDiv.innerHTML = `
+                    <div style="font-weight: 500; margin-bottom: 8px; color: #ffffff;">Search Results:</div>
+                    <div style="color: #9ca3af; font-size: 11px;">No results to display</div>
+                `;
+            }
+
+            showSearchContext();
+        }
+
+        function clearSearchContext() {
+            const searchKeywordsDiv = document.getElementById('searchKeywords');
+            const searchResultsDiv = document.getElementById('searchResults');
+            searchKeywordsDiv.innerHTML = '';
+            searchResultsDiv.innerHTML = '';
+            hideSearchContext();
         }
 
         // Auto-refresh files every 30 seconds

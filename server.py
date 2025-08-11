@@ -66,6 +66,22 @@ def require_admin(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def extract_llm_response_data(llm_response):
+    """Helper function to extract response data and metrics"""
+    if isinstance(llm_response, dict):
+        return {
+            'content': llm_response.get('content', ''),
+            'processing_time': llm_response.get('processing_time', 0),
+            'tokens_per_second': llm_response.get('tokens_per_second', 0)
+        }
+    else:
+        # Old format - just a string
+        return {
+            'content': llm_response,
+            'processing_time': 0,
+            'tokens_per_second': 0
+        }
+
 def get_combined_system_prompt(mode='default'):
     """Get combined universal + mode-specific system prompt"""
     system_config = llm_client.config.get('system_prompt', {})
@@ -226,14 +242,17 @@ def chat():
                     conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
         
         # Generate response using full conversation context
-        response = llm_client.chat_completion(conversation_context)
+        llm_response = llm_client.chat_completion(conversation_context)
+        response_data = extract_llm_response_data(llm_response)
         
         # Add assistant response to conversation memory
-        memory.add_message(session_id, 'assistant', response)
+        memory.add_message(session_id, 'assistant', response_data['content'])
         
         return jsonify({
-            'response': response,
-            'session_id': session_id
+            'response': response_data['content'],
+            'session_id': session_id,
+            'processing_time': response_data['processing_time'],
+            'tokens_per_second': response_data['tokens_per_second']
         })
         
     except Exception as e:
@@ -460,9 +479,15 @@ def search_chat():
         if not session_data or session_data.get('user_id') != user_id:
             return jsonify({'error': 'Session not found or access denied'}), 403
         
+        # Measure search processing time
+        import time
+        search_start_time = time.time()
+        
         # Perform web search with keyword extraction
         search_result = web_search_feature.search_web(user_message, search_config.get('max_results', 5), format_for_llm=True)
         search_results = search_result.get('formatted_context', 'No search results available')
+        
+        search_processing_time = (time.time() - search_start_time) * 1000
         
         # Add user message to conversation memory
         memory.add_message(session_id, 'user', user_message)
@@ -492,19 +517,23 @@ Please answer the user's question using the search results above when relevant. 
             conversation_context[-1]['content'] = enhanced_message
         
         # Generate response using enhanced context
-        response = llm_client.chat_completion(conversation_context)
+        llm_response = llm_client.chat_completion(conversation_context)
+        response_data = extract_llm_response_data(llm_response)
         
         # Add assistant response to conversation memory
-        memory.add_message(session_id, 'assistant', response)
+        memory.add_message(session_id, 'assistant', response_data['content'])
         
         return jsonify({
-            'response': response,
+            'response': response_data['content'],
             'session_id': session_id,
             'search_context_used': search_result.get('success', False),
             'search_results_count': search_result.get('result_count', 0),
             'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
             'optimized_queries': search_result.get('queries_tried', [user_message]),
-            'successful_query': search_result.get('successful_query')
+            'successful_query': search_result.get('successful_query'),
+            'processing_time': response_data['processing_time'],
+            'tokens_per_second': response_data['tokens_per_second'],
+            'search_processing_time': search_processing_time
         })
         
     except Exception as e:
@@ -771,11 +800,36 @@ Please analyze the document content and answer the user's question."""
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'ollama_url': llm_client.ollama_url,
-        'model': llm_client.model
-    })
+    try:
+        # Test LLM client status
+        llm_status = 'healthy'
+        ollama_url = getattr(llm_client, 'ollama_url', 'Not configured')
+        model = getattr(llm_client, 'model', 'Not configured')
+        
+        # Try to ping Ollama to see if it's actually accessible
+        try:
+            import requests
+            if hasattr(llm_client, 'ollama_url') and llm_client.ollama_url:
+                response = requests.get(f"{llm_client.ollama_url}/api/tags", timeout=5)
+                if response.status_code != 200:
+                    llm_status = 'ollama_unreachable'
+        except:
+            llm_status = 'ollama_unreachable'
+        
+        return jsonify({
+            'status': llm_status,
+            'ollama_url': ollama_url,
+            'model': model,
+            'web_search_enabled': web_search_feature.enabled if web_search_feature else False,
+            'keyword_extraction_enabled': web_search_feature.use_keyword_extraction if web_search_feature else False
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'ollama_url': 'Error',
+            'model': 'Error'
+        }), 500
 
 # Conversation Memory Endpoints
 
