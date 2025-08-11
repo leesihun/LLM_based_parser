@@ -19,7 +19,7 @@ from core.user_management import UserManager
 from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
 # Import web search functionality
-from src.selenium_search import SeleniumSearcher as WebSearcher
+from src.web_search_feature import WebSearchFeature
 
 # Import enhanced web search integration
 try:
@@ -37,7 +37,7 @@ memory = ConversationMemory()
 user_manager = UserManager()
 rag_system = RAGSystem("config/config.json")  # Pass config path
 file_handler = FileHandler()
-web_searcher = WebSearcher(llm_client.config.get('web_search', {}))
+web_search_feature = WebSearchFeature(llm_client.config.get('web_search', {}), llm_client)
 
 def require_auth(f):
     """Decorator to require authentication"""
@@ -417,12 +417,17 @@ def web_search():
         if not search_config.get('enabled', False):
             return jsonify({'error': 'Web search is disabled'}), 403
         
-        results = web_searcher.search(query, max_results)
+        search_result = web_search_feature.search_web(query, max_results, format_for_llm=False)
         
         return jsonify({
-            'results': results,
+            'success': search_result['success'],
+            'results': search_result.get('results', []),
             'query': query,
-            'count': len(results)
+            'count': search_result.get('result_count', 0),
+            'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
+            'optimized_queries': search_result.get('queries_tried', [query]),
+            'successful_query': search_result.get('successful_query'),
+            'error': search_result.get('error')
         })
         
     except Exception as e:
@@ -455,8 +460,9 @@ def search_chat():
         if not session_data or session_data.get('user_id') != user_id:
             return jsonify({'error': 'Session not found or access denied'}), 403
         
-        # Perform web search
-        search_results = web_searcher.search_with_context(user_message, search_config.get('max_results', 5))
+        # Perform web search with keyword extraction
+        search_result = web_search_feature.search_web(user_message, search_config.get('max_results', 5), format_for_llm=True)
+        search_results = search_result.get('formatted_context', 'No search results available')
         
         # Add user message to conversation memory
         memory.add_message(session_id, 'user', user_message)
@@ -494,10 +500,71 @@ Please answer the user's question using the search results above when relevant. 
         return jsonify({
             'response': response,
             'session_id': session_id,
-            'search_context_used': True,
-            'search_results_count': len(web_searcher.search(user_message, search_config.get('max_results', 5)))
+            'search_context_used': search_result.get('success', False),
+            'search_results_count': search_result.get('result_count', 0),
+            'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
+            'optimized_queries': search_result.get('queries_tried', [user_message]),
+            'successful_query': search_result.get('successful_query')
         })
         
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/keyword-extraction', methods=['GET'])
+@require_auth
+def get_keyword_extraction_status():
+    """Get keyword extraction settings and status"""
+    try:
+        return jsonify({
+            'enabled': web_search_feature.use_keyword_extraction,
+            'extraction_methods': web_search_feature.keyword_extractor.extraction_methods,
+            'max_keywords': web_search_feature.keyword_extractor.max_keywords,
+            'capabilities': web_search_feature.keyword_extractor.technical_keywords.__len__()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/keyword-extraction/enable', methods=['POST'])
+@require_auth
+def enable_keyword_extraction():
+    """Enable keyword extraction for web searches"""
+    try:
+        web_search_feature.enable_keyword_extraction()
+        return jsonify({'success': True, 'message': 'Keyword extraction enabled'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/keyword-extraction/disable', methods=['POST'])
+@require_auth
+def disable_keyword_extraction():
+    """Disable keyword extraction for web searches"""
+    try:
+        web_search_feature.disable_keyword_extraction()
+        return jsonify({'success': True, 'message': 'Keyword extraction disabled'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/search/extract-keywords', methods=['POST'])
+@require_auth
+def extract_keywords_only():
+    """Extract keywords from text without performing search"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        
+        if not text:
+            return jsonify({'error': 'Text is required'}), 400
+        
+        extraction_result = web_search_feature.keyword_extractor.extract_keywords(text)
+        
+        return jsonify({
+            'success': True,
+            'original_text': text,
+            'keywords': extraction_result.get('keywords', []),
+            'queries': extraction_result.get('queries', []),
+            'method': extraction_result.get('method'),
+            'extraction_results': extraction_result.get('extraction_results', {})
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

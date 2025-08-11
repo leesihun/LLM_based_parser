@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Server Integration for Enhanced Web Search
+Server Integration for Web Search
 Provides enhanced web search endpoints using browser automation
 """
 

@@ -12,26 +12,33 @@ from datetime import datetime
 # Import search systems
 try:
     from .selenium_search import SeleniumSearcher
+    from .keyword_extractor import KeywordExtractor
 except ImportError:
     from selenium_search import SeleniumSearcher
+    from keyword_extractor import KeywordExtractor
 
 
 class WebSearchFeature:
     """Web search feature for LLM integration"""
     
-    def __init__(self, config: Optional[Dict] = None):
+    def __init__(self, config: Optional[Dict] = None, llm_client=None):
         """Initialize web search feature"""
         self.config = config or {}
         self.searcher = SeleniumSearcher(config)
         self.enabled = True
         self.search_history = []
         
+        # Initialize keyword extractor
+        keyword_config = self.config.get('keyword_extraction', {})
+        self.keyword_extractor = KeywordExtractor(keyword_config, llm_client)
+        self.use_keyword_extraction = keyword_config.get('enabled', True)
+        
         # Set up logging
         self.logger = logging.getLogger(__name__)
-        self.logger.info("Selenium Search Feature initialized")
+        self.logger.info("Web Search Feature initialized with keyword extraction")
     
     def search_web(self, query: str, max_results: Optional[int] = None, 
-                   format_for_llm: bool = True) -> Dict[str, Any]:
+                   format_for_llm: bool = True, use_keyword_extraction: Optional[bool] = None) -> Dict[str, Any]:
         """
         Perform web search and return formatted results
         
@@ -39,6 +46,7 @@ class WebSearchFeature:
             query: Search query string
             max_results: Maximum number of results
             format_for_llm: Whether to format results for LLM consumption
+            use_keyword_extraction: Override default keyword extraction setting
             
         Returns:
             Dictionary with search results and metadata
@@ -60,16 +68,88 @@ class WebSearchFeature:
             }
         
         try:
-            # Perform search
-            self.logger.info(f"Searching web for: {query}")
-            results = self.searcher.search(query, max_results)
+            # Determine if keyword extraction should be used
+            extract_keywords = use_keyword_extraction if use_keyword_extraction is not None else self.use_keyword_extraction
+            
+            # Extract keywords and generate optimized queries if enabled
+            original_query = query
+            search_queries = []
+            extraction_info = None
+            
+            if extract_keywords and self.keyword_extractor:
+                try:
+                    extraction_info = self.keyword_extractor.extract_keywords(query)
+                    if extraction_info and extraction_info.get('queries'):
+                        search_queries = extraction_info['queries']
+                        self.logger.info(f"Extracted {len(extraction_info.get('keywords', []))} keywords from: {query}")
+                        self.logger.info(f"Generated {len(search_queries)} optimized queries")
+                    else:
+                        self.logger.info(f"Keyword extraction yielded no results")
+                        return {
+                            'success': False,
+                            'error': 'Keyword extraction produced no usable queries',
+                            'results': [],
+                            'query': query,
+                            'timestamp': datetime.now().isoformat()
+                        }
+                except Exception as e:
+                    self.logger.error(f"Keyword extraction failed: {e}")
+                    return {
+                        'success': False,
+                        'error': f'Keyword extraction failed: {str(e)}',
+                        'results': [],
+                        'query': query,
+                        'timestamp': datetime.now().isoformat()
+                    }
+            else:
+                # If keyword extraction is disabled, use original query only
+                search_queries = [query]
+            
+            # Try searching with optimized queries
+            all_results = []
+            successful_query = None
+            
+            for i, search_query in enumerate(search_queries):
+                try:
+                    self.logger.info(f"Searching web with query {i+1}/{len(search_queries)}: {search_query}")
+                    results = self.searcher.search(search_query, max_results)
+                    
+                    if results:
+                        all_results.extend(results)
+                        successful_query = search_query
+                        
+                        # If we got good results from first query, we can stop
+                        if len(results) >= (max_results or 5) // 2:
+                            break
+                            
+                except Exception as e:
+                    self.logger.warning(f"Search failed for query '{search_query}': {e}")
+                    continue
+            
+            # Remove duplicates based on URL
+            seen_urls = set()
+            unique_results = []
+            for result in all_results:
+                url = result.get('url', '')
+                if url and url not in seen_urls:
+                    seen_urls.add(url)
+                    unique_results.append(result)
+            
+            # Limit to max_results
+            if max_results and len(unique_results) > max_results:
+                unique_results = unique_results[:max_results]
+            
+            results = unique_results
             
             # Log search in history
             search_entry = {
                 'query': query,
                 'timestamp': datetime.now().isoformat(),
                 'result_count': len(results),
-                'success': len(results) > 0
+                'success': len(results) > 0,
+                'keyword_extraction_used': extract_keywords,
+                'successful_query': successful_query if successful_query != query else None,
+                'queries_tried': len(search_queries) if extract_keywords else 1
             }
             self.search_history.append(search_entry)
             
@@ -82,7 +162,11 @@ class WebSearchFeature:
                 'query': query,
                 'results': results,
                 'result_count': len(results),
-                'timestamp': search_entry['timestamp']
+                'timestamp': search_entry['timestamp'],
+                'keyword_extraction_used': extract_keywords,
+                'extraction_info': extraction_info,
+                'successful_query': successful_query,
+                'queries_tried': search_queries if extract_keywords else [query]
             }
             
             # Add formatted context if requested
@@ -156,6 +240,46 @@ class WebSearchFeature:
         """Get search history"""
         return self.search_history.copy()
     
+    def enable_keyword_extraction(self):
+        """Enable keyword extraction for searches"""
+        self.use_keyword_extraction = True
+        self.logger.info("Keyword extraction enabled")
+    
+    def disable_keyword_extraction(self):
+        """Disable keyword extraction for searches"""
+        self.use_keyword_extraction = False
+        self.logger.info("Keyword extraction disabled")
+    
+    def search_with_raw_query(self, query: str, max_results: Optional[int] = None, 
+                             format_for_llm: bool = True) -> Dict[str, Any]:
+        """
+        Perform search using the original query without keyword extraction
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results
+            format_for_llm: Whether to format results for LLM consumption
+            
+        Returns:
+            Dictionary with search results and metadata
+        """
+        return self.search_web(query, max_results, format_for_llm, use_keyword_extraction=False)
+    
+    def search_with_keyword_extraction(self, query: str, max_results: Optional[int] = None, 
+                                     format_for_llm: bool = True) -> Dict[str, Any]:
+        """
+        Perform search using keyword extraction
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results
+            format_for_llm: Whether to format results for LLM consumption
+            
+        Returns:
+            Dictionary with search results and metadata
+        """
+        return self.search_web(query, max_results, format_for_llm, use_keyword_extraction=True)
+    
     def search_and_summarize(self, query: str, max_results: Optional[int] = None) -> str:
         """
         Perform search and return a summary suitable for LLM context
@@ -181,9 +305,9 @@ class WebSearchFeature:
 
 
 # Utility functions for integration
-def create_web_search_feature(config: Optional[Dict] = None) -> WebSearchFeature:
+def create_web_search_feature(config: Optional[Dict] = None, llm_client=None) -> WebSearchFeature:
     """Create and return a web search feature instance"""
-    return WebSearchFeature(config)
+    return WebSearchFeature(config, llm_client)
 
 
 def test_web_search_integration():

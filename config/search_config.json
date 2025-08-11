@@ -18,7 +18,21 @@
       "bing",
       "startpage"
     ],
-    "fallback_enabled": true
+    "fallback_enabled": false,
+    "keyword_extraction": {
+      "enabled": true,
+      "extraction_methods": [
+        "rule_based",
+        "tfidf",
+        "llm_assisted"
+      ],
+      "max_keywords": 8,
+      "min_keyword_length": 2,
+      "query_expansion": true,
+      "fallback_to_original": false,
+      "technical_terms_boost": 2.0,
+      "multiword_terms_boost": 1.5
+    }
   },
   "search_methods": {
     "browser_search": {

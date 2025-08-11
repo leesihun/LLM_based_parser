@@ -19,7 +19,8 @@
       "Bash(python:*)",
       "Bash(timeout:*)",
       "Bash(rm:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:docs.searxng.org)"
     ],
     "deny": []
   }
