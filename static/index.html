@@ -1195,7 +1195,7 @@
         }
 
         async function sendRagMessage(message) {
-            const response = await fetch('/api/rag/chat', {
+            const response = await fetch('/api/chat/rag', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1215,14 +1215,15 @@
         }
 
         async function sendDocumentMessage(message) {
-            const response = await fetch('/api/document/read', {
+            // For document analysis, use RAG chat which searches the knowledge base
+            const response = await fetch('/api/chat/rag', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${userToken}`
                 },
                 body: JSON.stringify({
-                    question: message,
+                    message: message,
                     session_id: sessionId
                 })
             });
@@ -1259,7 +1260,7 @@
         }
 
         async function sendSearchMessage(message) {
-            const response = await fetch('/api/search/chat', {
+            const response = await fetch('/api/chat/web-search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1285,32 +1286,10 @@
             return result;
         }
 
+        // Enhanced search is now handled by the main web search functionality
         async function sendEnhancedSearchMessage(message) {
-            const response = await fetch('/api/search/enhanced_chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`
-                },
-                body: JSON.stringify({
-                    message: message,
-                    session_id: sessionId,
-                    max_results: 5
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-            
-            // Show search info if available
-            if (result.search_performed && result.sources_found > 0) {
-                addSearchInfo(result.search_query, result.sources_found);
-            }
-            
-            return result;
+            // Use the standard web search endpoint with enhanced processing
+            return await sendSearchMessage(message);
         }
 
         function addSearchInfo(query, sourceCount) {
