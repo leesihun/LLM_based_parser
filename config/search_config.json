@@ -3,22 +3,13 @@
     "enabled": true,
     "timeout": 15,
     "max_results": 5,
-    "delay": 1,
-    "proxy": {
-      "enabled": true,
-      "host": "168.219.61.252",
-      "port": 8080,
-      "username": null,
-      "password": null,
-      "auth_type": "none",
-      "domain": null
+    "delay": 2,
+    "search_engine": "bing",
+    "selenium": {
+      "headless": true,
+      "browser_preference": ["chrome", "firefox"],
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     },
-    "engines": [
-      "duckduckgo",
-      "bing",
-      "startpage"
-    ],
-    "fallback_enabled": false,
     "keyword_extraction": {
       "enabled": true,
       "extraction_methods": [
@@ -29,31 +20,9 @@
       "max_keywords": 8,
       "min_keyword_length": 2,
       "query_expansion": true,
-      "fallback_to_original": false,
+      "require_adequate_keywords": true,
       "technical_terms_boost": 2.0,
       "multiword_terms_boost": 1.5
-    }
-  },
-  "search_methods": {
-    "browser_search": {
-      "enabled": true,
-      "priority": 1
-    },
-    "searx_instances": {
-      "enabled": true,
-      "priority": 2,
-      "instances": [
-        "https://searx.be",
-        "https://search.sapti.me",
-        "https://searx.xyz"
-      ]
-    },
-    "api_methods": {
-      "enabled": true,
-      "priority": 3,
-      "wikipedia": true,
-      "github": true,
-      "stackoverflow": true
     }
   }
 }

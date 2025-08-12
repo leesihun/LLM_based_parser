@@ -79,18 +79,20 @@ class WebSearchFeature:
             if extract_keywords and self.keyword_extractor:
                 try:
                     extraction_info = self.keyword_extractor.extract_keywords(query)
-                    if extraction_info and extraction_info.get('queries'):
+                    if extraction_info and extraction_info.get('adequate_keywords') and extraction_info.get('queries'):
                         search_queries = extraction_info['queries']
-                        self.logger.info(f"Extracted {len(extraction_info.get('keywords', []))} keywords from: {query}")
+                        self.logger.info(f"Extracted {len(extraction_info.get('keywords', []))} adequate keywords from: {query}")
                         self.logger.info(f"Generated {len(search_queries)} optimized queries")
                     else:
-                        self.logger.info(f"Keyword extraction yielded no results")
+                        reason = "no adequate keywords found" if not extraction_info.get('adequate_keywords') else "no queries generated"
+                        self.logger.info(f"Keyword extraction failed: {reason}")
                         return {
                             'success': False,
-                            'error': 'Keyword extraction produced no usable queries',
+                            'error': f'Cannot perform web search: {reason}. Query too generic or lacks searchable terms.',
                             'results': [],
                             'query': query,
-                            'timestamp': datetime.now().isoformat()
+                            'timestamp': datetime.now().isoformat(),
+                            'extraction_info': extraction_info
                         }
                 except Exception as e:
                     self.logger.error(f"Keyword extraction failed: {e}")

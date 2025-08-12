@@ -21,11 +21,7 @@ from src.file_handler import FileHandler
 # Import web search functionality
 from src.web_search_feature import WebSearchFeature
 
-# Import enhanced web search integration
-try:
-    from src.server_integration import integrate_web_search
-except ImportError:
-    integrate_web_search = None
+# Web search is integrated directly in this server
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -1078,14 +1074,7 @@ def get_local_ip():
     except Exception:
         return "Unable to determine IP"
 
-# Initialize enhanced web search integration if available
-enhanced_search_integration = None
-if integrate_web_search:
-    try:
-        enhanced_search_integration = integrate_web_search(app, memory, llm_client, user_manager, require_auth)
-        print("Enhanced web search integration initialized successfully")
-    except Exception as e:
-        print(f"Failed to initialize enhanced web search: {e}")
+# Web search is integrated directly via WebSearchFeature
 
 def main():
     """Main function to start the server"""
