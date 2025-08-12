@@ -21,7 +21,7 @@
     "universal": [
       "You are an AI assistant for the HE team. Always be professional, accurate, and helpful.",
       "Provide clear, concise responses and ask for clarification when needed.",
-      "Always format your responses better, Use enters to separate sentences."
+      "Always format your responses better, Use linebreaks liberally."
     ],
     "default": [
       "You provide general assistance with various tasks including programming, analysis, and problem-solving."
@@ -33,7 +33,8 @@
         "You have access to current internet search results.",
         "Use the provided search results to answer questions with up-to-date information.",
         "Always cite the sources from the search results when providing information.",
-        "If the search results don't contain relevant information, say so and provide general guidance if possible."
+        "If the search results don't contain relevant information, say so and provide general guidance if possible.",
+        "Based on the given context, provide one clear answer to the user's question."
       ]
     },
     "web_search": {
