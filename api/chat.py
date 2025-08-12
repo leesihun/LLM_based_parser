@@ -203,15 +203,15 @@ def create_chat_endpoints(app, llm_client, memory, rag_system, file_handler, web
             
             # Search RAG system for relevant context
             search_results = rag_system.search(user_message, max_results=max_results)
-            context_text = "\\n\\n".join([result['content'] for result in search_results])
+            context_text = "\n\n".join([result['content'] for result in search_results])
             
             # Create enhanced prompt with RAG context
-            enhanced_message = f\"\"\"Context from knowledge base:
+            enhanced_message = f"""Context from knowledge base:
 {context_text}
 
 User Question: {user_message}
 
-Please answer the question using the provided context when relevant.\"\"\"
+Please answer the question using the provided context when relevant."""
             
             # Get full conversation context for LLM
             conversation_context = memory.get_context_for_llm(session_id)
@@ -314,12 +314,12 @@ Please answer the question using the provided context when relevant.\"\"\"
             memory.add_message(session_id, 'user', user_message)
             
             # Create enhanced prompt with search results
-            enhanced_message = f\"\"\"Web Search Results:
+            enhanced_message = f"""Web Search Results:
 {search_results}
 
 User Question: {user_message}
 
-Please answer the user's question using the search results above when relevant. Always cite your sources.\"\"\"
+Please answer the user's question using the search results above when relevant. Always cite your sources."""
             
             # Get full conversation context for LLM
             conversation_context = memory.get_context_for_llm(session_id)
