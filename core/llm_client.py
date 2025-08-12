@@ -17,7 +17,8 @@ class LLMClient:
         self.config = self._load_config(config_path)
         self.ollama_url = self.config["ollama"]["host"]
         self.model = self.config["ollama"]["model"]
-        self.timeout = self.config["ollama"]["timeout"]*1000
+        self.timeout = self.config["ollama"]["timeout"] / 1000
+        self._preload_model()
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
@@ -31,6 +32,21 @@ class LLMClient:
             print(f"Invalid JSON in config file {config_path}")
             sys.exit(1)
     
+    def _preload_model(self) -> None:
+        """Preload model to reduce cold start times"""
+        try:
+            url = f"{self.ollama_url}/api/generate"
+            payload = {
+                "model": self.model,
+                "prompt": "",  # Empty prompt for preloading
+                "stream": False,
+                "options": {"num_predict": 1}  # Generate only 1 token
+            }
+            requests.post(url, json=payload, timeout=30)
+        except Exception:
+            # Silently fail preloading, don't block initialization
+            pass
+    
     def generate_response(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Generate response from LLM using Ollama API"""
         url = f"{self.ollama_url}/api/generate"
@@ -43,7 +59,9 @@ class LLMClient:
                 "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
                 "temperature": self.config.get("ollama", {}).get("temperature", 0.7),
                 "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
-                "top_k": self.config.get("ollama", {}).get("top_k", 40)
+                "top_k": self.config.get("ollama", {}).get("top_k", 40),
+                "num_gpu": -1,  # Use all available GPUs
+                "num_thread": 1  # Reduce CPU competition with GPU
             }
         }
         
@@ -54,7 +72,7 @@ class LLMClient:
             response = requests.post(
                 url, 
                 json=payload, 
-                timeout=self.timeout / 1000
+                timeout=self.timeout
             )
             response.raise_for_status()
             
@@ -79,7 +97,9 @@ class LLMClient:
                 "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
                 "temperature": self.config.get("ollama", {}).get("temperature", 0.7),
                 "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
-                "top_k": self.config.get("ollama", {}).get("top_k", 40)
+                "top_k": self.config.get("ollama", {}).get("top_k", 40),
+                "num_gpu": -1,  # Use all available GPUs
+                "num_thread": 1  # Reduce CPU competition with GPU
             }
         }
         
@@ -88,7 +108,7 @@ class LLMClient:
             response = requests.post(
                 url, 
                 json=payload, 
-                timeout=self.timeout / 1000
+                timeout=self.timeout
             )
             end_time = time.time()
             processing_time_ms = (end_time - start_time) * 1000

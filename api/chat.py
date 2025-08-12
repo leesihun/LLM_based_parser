@@ -54,7 +54,7 @@ def get_combined_system_prompt(llm_client, mode: str = 'default') -> str:
     # Handle both string and array formats
     def format_prompt(prompt_data):
         if isinstance(prompt_data, list):
-            return '\n'.join(prompt_data)
+            return '\n\n'.join(prompt_data)  # Use double newlines for better separation
         elif isinstance(prompt_data, str):
             return prompt_data
         else:
@@ -64,7 +64,7 @@ def get_combined_system_prompt(llm_client, mode: str = 'default') -> str:
     mode_prompt = format_prompt(system_config.get(mode, system_config.get('default', '')))
     
     if universal_prompt and mode_prompt:
-        return f"{universal_prompt}\n\n{mode_prompt}"
+        return f"{universal_prompt}\n\n\n{mode_prompt}"  # Triple newline for clear separation
     elif universal_prompt:
         return universal_prompt
     elif mode_prompt:
