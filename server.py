@@ -20,8 +20,8 @@ from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
 # Import web search functionality
 from src.web_search_feature import WebSearchFeature
-
-# Web search is integrated directly in this server
+# Import chat endpoints
+from api.chat import create_chat_endpoints
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -534,6 +534,13 @@ Please answer the user's question using the search results above when relevant. 
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+# Alias for web search chat to match frontend expectations
+@app.route('/api/chat/web-search', methods=['POST'])
+@require_auth
+def web_search_chat():
+    """Web search chat endpoint - alias for /api/search/chat"""
+    return search_chat()
 
 @app.route('/api/search/keyword-extraction', methods=['GET'])
 @require_auth
