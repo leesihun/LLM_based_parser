@@ -20,8 +20,9 @@ from src.rag_system import RAGSystem
 from src.file_handler import FileHandler
 # Import web search functionality
 from src.web_search_feature import WebSearchFeature
-# Import chat endpoints
+# Import API endpoints
 from api.chat import create_chat_endpoints
+from api.conversations import create_conversation_endpoints
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -834,104 +835,7 @@ def health_check():
             'model': 'Error'
         }), 500
 
-# Conversation Memory Endpoints
-
-@app.route('/api/conversations', methods=['GET'])
-@require_auth
-def list_conversations():
-    """List user's conversation sessions"""
-    try:
-        user_id = request.user['user_id']
-        conversations = memory.list_sessions(user_id=user_id)
-        return jsonify({'conversations': conversations})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/conversations', methods=['POST'])
-@require_auth
-def create_conversation():
-    """Create a new conversation session"""
-    try:
-        user_id = request.user['user_id']
-        session_id = memory.create_session(user_id)
-        return jsonify({'session_id': session_id})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/conversations/<session_id>', methods=['GET'])
-@require_auth
-def get_conversation(session_id):
-    """Get a specific conversation session"""
-    try:
-        user_id = request.user['user_id']
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found'}), 404
-        return jsonify({'conversation': session_data})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/conversations/<session_id>/history', methods=['GET'])
-@require_auth
-def get_conversation_history(session_id):
-    """Get conversation history for a session"""
-    try:
-        user_id = request.user['user_id']
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found'}), 404
-        
-        history = memory.get_conversation_history(session_id, include_system=False)
-        return jsonify({'history': history})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/conversations/<session_id>', methods=['DELETE'])
-@require_auth
-def delete_conversation(session_id):
-    """Delete a conversation session"""
-    try:
-        user_id = request.user['user_id']
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found'}), 404
-            
-        success = memory.delete_session(session_id)
-        if not success:
-            return jsonify({'error': 'Session not found'}), 404
-        return jsonify({'message': 'Session deleted successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/conversations/clear', methods=['POST'])
-@require_auth
-def clear_conversations():
-    """Clear all user's conversations"""
-    try:
-        user_id = request.user['user_id']
-        deleted_count = memory.clear_all_sessions(user_id)
-        return jsonify({'message': f'Cleared {deleted_count} conversations'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/memory/stats', methods=['GET'])
-@require_auth
-def get_memory_stats():
-    """Get user's conversation memory statistics"""
-    try:
-        user_id = request.user['user_id']
-        # Filter stats for current user only
-        stats = memory.get_session_stats()
-        user_sessions = memory.list_sessions(user_id=user_id)
-        user_stats = {
-            'total_sessions': len(user_sessions),
-            'total_messages': sum(s.get('total_messages', 0) for s in user_sessions),
-            'max_context_length': stats['max_context_length'],
-            'session_timeout_hours': stats['session_timeout_hours']
-        }
-        return jsonify({'stats': user_stats})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Conversation endpoints are now handled by api/conversations.py
 
 # Admin Endpoints
 
@@ -1082,6 +986,10 @@ def get_local_ip():
         return "Unable to determine IP"
 
 # Web search is integrated directly via WebSearchFeature
+
+# Register API endpoints
+create_chat_endpoints(app, llm_client, memory, rag_system, file_handler, web_search_feature, require_auth)
+create_conversation_endpoints(app, memory, require_auth)
 
 def main():
     """Main function to start the server"""

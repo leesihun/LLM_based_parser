@@ -668,7 +668,39 @@ curl -X POST http://localhost:8000/api/search/extract-keywords \
 
 ---
 
-## Conversation Management
+## Conversation Management & Resumption
+
+### Overview
+The system supports full conversation resumption across all chat types. Each conversation has a unique `session_id` that preserves context and message history.
+
+### How to Continue an Existing Conversation
+
+#### Method 1: Include session_id in chat requests
+```bash
+curl -X POST http://localhost:8000/api/chat \
+  -H "Authorization: Bearer your-session-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What did we discuss about machine learning earlier?",
+    "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }'
+```
+
+#### Method 2: List conversations first, then continue
+```bash
+# 1. Get your conversations
+curl -X GET http://localhost:8000/api/conversations \
+  -H "Authorization: Bearer your-session-token"
+
+# 2. Use session_id from response to continue
+curl -X POST http://localhost:8000/api/chat \
+  -H "Authorization: Bearer your-session-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Can you elaborate on what we discussed?",
+    "session_id": "session-id-from-step-1"
+  }'
+```
 
 ### List Conversations
 
@@ -678,29 +710,108 @@ curl -X POST http://localhost:8000/api/search/extract-keywords \
 
 **Headers:** `Authorization: Bearer <token>`
 
+**Query Parameters:**
+- `limit` (optional): Maximum conversations to return (default: 50)
+
 **Success Response (200):**
 ```json
 {
-  "sessions": [
+  "conversations": [
     {
-      "session_id": "sess_123",
-      "created_at": "2024-01-15T10:00:00Z",
-      "message_count": 15,
-      "last_message": "Thank you for the explanation"
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "title": "Python programming help...",
+      "created_at": "2025-01-08T10:30:00.123456",
+      "last_activity": "2025-01-08T11:45:30.654321", 
+      "total_messages": 12,
+      "user_id": "user123"
+    },
+    {
+      "id": "b2c3d4e5-f6g7-8901-bcde-f23456789012",
+      "title": "Machine learning discussion...",
+      "created_at": "2025-01-07T14:20:00.789012",
+      "last_activity": "2025-01-07T15:30:45.345678",
+      "total_messages": 8,
+      "user_id": "user123"
     }
   ]
 }
+```
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8000/api/conversations?limit=10" \
+  -H "Authorization: Bearer your-session-token"
+```
+
+---
+
+### Create New Conversation
+
+**Endpoint:** `POST /api/conversations`
+
+**Description:** Explicitly create a new conversation session
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Success Response (200):**
+```json
+{
+  "session_id": "c3d4e5f6-g7h8-9012-cdef-g34567890123"
+}
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/conversations \
+  -H "Authorization: Bearer your-session-token"
+```
+
+---
+
+### Get Specific Conversation
+
+**Endpoint:** `GET /api/conversations/<session_id>`
+
+**Description:** Get details about a specific conversation
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Success Response (200):**
+```json
+{
+  "conversation": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "user_id": "user123",
+    "created_at": "2025-01-08T10:30:00.123456",
+    "last_activity": "2025-01-08T11:45:30.654321",
+    "messages": [...],
+    "metadata": {
+      "title": "Python programming help...",
+      "model": "llama3.2",
+      "total_messages": 12
+    }
+  }
+}
+```
+
+**Example:**
+```bash
+curl -X GET http://localhost:8000/api/conversations/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  -H "Authorization: Bearer your-session-token"
 ```
 
 ---
 
 ### Get Conversation History
 
-**Endpoint:** `GET /api/conversations/{session_id}/history`
+**Endpoint:** `GET /api/conversations/<session_id>/history`
 
-**Description:** Get full conversation history
+**Description:** Get message history for a conversation
 
 **Headers:** `Authorization: Bearer <token>`
+
+**Query Parameters:**
+- `include_system` (optional): Include system messages (default: false)
 
 **Success Response (200):**
 ```json
@@ -708,25 +819,40 @@ curl -X POST http://localhost:8000/api/search/extract-keywords \
   "history": [
     {
       "role": "user",
-      "content": "Hello, how are you?",
-      "timestamp": "2024-01-15T10:00:00Z"
+      "content": "Hello, can you help me with Python programming?",
+      "timestamp": "2025-01-08T10:30:15.123456",
+      "metadata": {}
     },
     {
-      "role": "assistant",
-      "content": "I'm doing well, thank you!",
-      "timestamp": "2024-01-15T10:00:05Z"
+      "role": "assistant", 
+      "content": "I'd be happy to help you with Python programming! What specific topic would you like assistance with?",
+      "timestamp": "2025-01-08T10:30:18.654321",
+      "metadata": {}
+    },
+    {
+      "role": "user",
+      "content": "How do I create a class in Python?",
+      "timestamp": "2025-01-08T10:31:05.789012", 
+      "metadata": {}
     }
-  ]
+  ],
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
+```
+
+**Example:**
+```bash
+curl -X GET "http://localhost:8000/api/conversations/a1b2c3d4-e5f6-7890-abcd-ef1234567890/history?include_system=false" \
+  -H "Authorization: Bearer your-session-token"
 ```
 
 ---
 
 ### Delete Conversation
 
-**Endpoint:** `DELETE /api/conversations/{session_id}`
+**Endpoint:** `DELETE /api/conversations/<session_id>`
 
-**Description:** Delete conversation session
+**Description:** Delete a specific conversation
 
 **Headers:** `Authorization: Bearer <token>`
 
@@ -736,6 +862,566 @@ curl -X POST http://localhost:8000/api/search/extract-keywords \
   "message": "Session deleted successfully"
 }
 ```
+
+**Example:**
+```bash
+curl -X DELETE http://localhost:8000/api/conversations/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  -H "Authorization: Bearer your-session-token"
+```
+
+---
+
+### Clear All Conversations
+
+**Endpoint:** `POST /api/conversations/clear`
+
+**Description:** Delete all user's conversations
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Success Response (200):**
+```json
+{
+  "message": "Cleared 5 conversations",
+  "deleted_count": 5
+}
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/conversations/clear \
+  -H "Authorization: Bearer your-session-token"
+```
+
+---
+
+### Get Conversation Statistics
+
+**Endpoint:** `GET /api/conversations/stats`
+
+**Description:** Get statistics about user's conversations
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Success Response (200):**
+```json
+{
+  "stats": {
+    "total_sessions": 5,
+    "total_messages": 47,
+    "max_context_length": 4000,
+    "session_timeout_hours": 24
+  }
+}
+```
+
+**Example:**
+```bash
+curl -X GET http://localhost:8000/api/conversations/stats \
+  -H "Authorization: Bearer your-session-token"
+```
+
+---
+
+### Conversation Resumption Examples
+
+#### JavaScript Example
+```javascript
+// Get conversations
+const conversationsResponse = await fetch('/api/conversations', {
+  headers: { 'Authorization': 'Bearer your-session-token' }
+});
+const conversations = await conversationsResponse.json();
+
+// Continue with the first conversation
+const sessionId = conversations.conversations[0].id;
+
+const chatResponse = await fetch('/api/chat', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer your-session-token',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: "Let's continue our previous discussion",
+    session_id: sessionId
+  })
+});
+
+const result = await chatResponse.json();
+console.log(result.response);
+```
+
+#### Complete Chat Flow Example (Bash)
+```bash
+# 1. Login
+TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}' | jq -r '.session_token')
+
+# 2. Start a conversation
+SESSION_ID=$(curl -s -X POST http://localhost:8000/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello, can you help me with Python?"}' | jq -r '.session_id')
+
+echo "Started conversation: $SESSION_ID"
+
+# 3. Continue the conversation
+curl -s -X POST http://localhost:8000/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Can you explain classes in Python?\", \"session_id\": \"$SESSION_ID\"}" | jq '.response'
+
+# 4. Get conversation history
+curl -s -X GET "http://localhost:8000/api/conversations/$SESSION_ID/history" \
+  -H "Authorization: Bearer $TOKEN" | jq '.history'
+
+# 5. Continue with RAG chat in same session
+curl -s -X POST http://localhost:8000/api/chat/rag \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"What does our documentation say about Python best practices?\", \"session_id\": \"$SESSION_ID\"}" | jq '.response'
+```
+
+#### Python Example Scripts
+
+**Basic conversation resumption:**
+```python
+import requests
+import json
+
+class LLMAssistantClient:
+    def __init__(self, base_url="http://localhost:8000"):
+        self.base_url = base_url
+        self.session_token = None
+        self.headers = {"Content-Type": "application/json"}
+    
+    def login(self, username, password):
+        """Login and get session token"""
+        response = requests.post(
+            f"{self.base_url}/api/auth/login",
+            headers=self.headers,
+            json={"username": username, "password": password}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            self.session_token = data["session_token"]
+            self.headers["Authorization"] = f"Bearer {self.session_token}"
+            print(f"✓ Logged in as {data['user']['username']}")
+            return True
+        else:
+            print(f"✗ Login failed: {response.json().get('error')}")
+            return False
+    
+    def chat(self, message, session_id=None, chat_type="normal"):
+        """Send chat message with optional conversation resumption"""
+        endpoint_map = {
+            "normal": "/api/chat",
+            "rag": "/api/chat/rag", 
+            "web-search": "/api/chat/web-search"
+        }
+        
+        endpoint = endpoint_map.get(chat_type, "/api/chat")
+        payload = {"message": message}
+        
+        if session_id:
+            payload["session_id"] = session_id
+            
+        response = requests.post(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            json=payload
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"✗ Chat failed: {response.json().get('error')}")
+            return None
+    
+    def list_conversations(self, limit=10):
+        """Get list of conversations"""
+        response = requests.get(
+            f"{self.base_url}/api/conversations?limit={limit}",
+            headers=self.headers
+        )
+        return response.json() if response.status_code == 200 else None
+    
+    def get_conversation_history(self, session_id, include_system=False):
+        """Get conversation history"""
+        response = requests.get(
+            f"{self.base_url}/api/conversations/{session_id}/history?include_system={str(include_system).lower()}",
+            headers=self.headers
+        )
+        return response.json() if response.status_code == 200 else None
+    
+    def delete_conversation(self, session_id):
+        """Delete a conversation"""
+        response = requests.delete(
+            f"{self.base_url}/api/conversations/{session_id}",
+            headers=self.headers
+        )
+        return response.status_code == 200
+
+# Example usage
+def main():
+    client = LLMAssistantClient()
+    
+    # 1. Login
+    if not client.login("admin", "admin123"):
+        return
+    
+    # 2. Start a new conversation
+    print("\n--- Starting new conversation ---")
+    result = client.chat("Hello, can you help me with Python programming?")
+    if result:
+        session_id = result["session_id"]
+        print(f"Assistant: {result['response']}")
+        print(f"Session ID: {session_id}")
+    
+    # 3. Continue the conversation
+    print("\n--- Continuing conversation ---")
+    result = client.chat("How do I create a class in Python?", session_id=session_id)
+    if result:
+        print(f"Assistant: {result['response']}")
+    
+    # 4. Try RAG chat in same session
+    print("\n--- RAG chat in same session ---")
+    result = client.chat("What does our documentation say about Python best practices?", 
+                        session_id=session_id, chat_type="rag")
+    if result:
+        print(f"Assistant: {result['response']}")
+        print(f"RAG results used: {result.get('search_results_count', 0)}")
+    
+    # 5. Get conversation history
+    print("\n--- Conversation History ---")
+    history = client.get_conversation_history(session_id)
+    if history:
+        for msg in history["history"]:
+            role = msg["role"].capitalize()
+            content = msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"]
+            print(f"{role}: {content}")
+    
+    # 6. List all conversations
+    print("\n--- All Conversations ---")
+    conversations = client.list_conversations()
+    if conversations:
+        for conv in conversations["conversations"]:
+            print(f"ID: {conv['id']}")
+            print(f"Title: {conv['title']}")
+            print(f"Messages: {conv['total_messages']}")
+            print(f"Last activity: {conv['last_activity']}")
+            print("---")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Advanced conversation management:**
+```python
+import requests
+import json
+from datetime import datetime
+from typing import Optional, List, Dict
+
+class ConversationManager:
+    def __init__(self, base_url="http://localhost:8000", username="admin", password="admin123"):
+        self.base_url = base_url
+        self.session_token = None
+        self.headers = {"Content-Type": "application/json"}
+        self.login(username, password)
+    
+    def login(self, username: str, password: str) -> bool:
+        """Login and authenticate"""
+        response = requests.post(
+            f"{self.base_url}/api/auth/login",
+            headers=self.headers,
+            json={"username": username, "password": password}
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            self.session_token = data["session_token"]
+            self.headers["Authorization"] = f"Bearer {self.session_token}"
+            return True
+        return False
+    
+    def create_conversation(self) -> Optional[str]:
+        """Create a new conversation explicitly"""
+        response = requests.post(
+            f"{self.base_url}/api/conversations",
+            headers=self.headers
+        )
+        return response.json().get("session_id") if response.status_code == 200 else None
+    
+    def send_message(self, message: str, session_id: Optional[str] = None, 
+                    chat_type: str = "normal", max_results: int = 5) -> Dict:
+        """Send message with full parameter support"""
+        endpoint_map = {
+            "normal": "/api/chat",
+            "rag": "/api/chat/rag",
+            "web-search": "/api/chat/web-search"
+        }
+        
+        payload = {"message": message}
+        if session_id:
+            payload["session_id"] = session_id
+        if chat_type in ["rag", "web-search"]:
+            payload["max_results"] = max_results
+            
+        response = requests.post(
+            f"{self.base_url}{endpoint_map[chat_type]}",
+            headers=self.headers,
+            json=payload
+        )
+        
+        return response.json() if response.status_code == 200 else {"error": response.text}
+    
+    def get_conversations(self, limit: int = 50) -> List[Dict]:
+        """Get all conversations with metadata"""
+        response = requests.get(
+            f"{self.base_url}/api/conversations?limit={limit}",
+            headers=self.headers
+        )
+        return response.json().get("conversations", []) if response.status_code == 200 else []
+    
+    def find_conversation_by_title(self, title_keyword: str) -> Optional[Dict]:
+        """Find conversation by title keyword"""
+        conversations = self.get_conversations()
+        for conv in conversations:
+            if title_keyword.lower() in conv["title"].lower():
+                return conv
+        return None
+    
+    def resume_conversation(self, session_id: str, message: str, chat_type: str = "normal") -> Dict:
+        """Resume a conversation with context awareness"""
+        # Get some recent history for context
+        history = self.get_conversation_history(session_id, limit=3)
+        
+        if history:
+            print("📖 Recent conversation context:")
+            for msg in history["history"][-3:]:  # Last 3 messages
+                role = "👤" if msg["role"] == "user" else "🤖"
+                content = msg["content"][:80] + "..." if len(msg["content"]) > 80 else msg["content"]
+                print(f"   {role} {content}")
+            print()
+        
+        return self.send_message(message, session_id, chat_type)
+    
+    def get_conversation_history(self, session_id: str, include_system: bool = False, 
+                               limit: Optional[int] = None) -> Dict:
+        """Get conversation history with optional limiting"""
+        response = requests.get(
+            f"{self.base_url}/api/conversations/{session_id}/history?include_system={str(include_system).lower()}",
+            headers=self.headers
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if limit:
+                data["history"] = data["history"][-limit:]  # Get last N messages
+            return data
+        return {}
+    
+    def conversation_stats(self) -> Dict:
+        """Get conversation statistics"""
+        response = requests.get(
+            f"{self.base_url}/api/conversations/stats",
+            headers=self.headers
+        )
+        return response.json().get("stats", {}) if response.status_code == 200 else {}
+    
+    def interactive_conversation_picker(self) -> Optional[str]:
+        """Interactive conversation picker"""
+        conversations = self.get_conversations(limit=20)
+        
+        if not conversations:
+            print("No existing conversations found.")
+            return None
+        
+        print("\n📋 Your Recent Conversations:")
+        print("-" * 80)
+        
+        for i, conv in enumerate(conversations[:10], 1):
+            # Format date
+            last_activity = datetime.fromisoformat(conv["last_activity"].replace('Z', '+00:00'))
+            formatted_date = last_activity.strftime("%Y-%m-%d %H:%M")
+            
+            print(f"{i:2d}. {conv['title'][:50]:<50}")
+            print(f"     💬 {conv['total_messages']} messages | 🕐 {formatted_date}")
+            print(f"     🆔 {conv['id']}")
+            print()
+        
+        try:
+            choice = input("Enter conversation number to resume (or press Enter for new): ").strip()
+            if choice and choice.isdigit():
+                idx = int(choice) - 1
+                if 0 <= idx < len(conversations):
+                    return conversations[idx]["id"]
+        except (ValueError, KeyboardInterrupt):
+            pass
+        
+        return None
+
+# Advanced example usage
+def advanced_example():
+    """Demonstrate advanced conversation management"""
+    manager = ConversationManager()
+    
+    print("🚀 Advanced Conversation Management Example")
+    print("=" * 50)
+    
+    # Show stats
+    stats = manager.conversation_stats()
+    print(f"📊 You have {stats.get('total_sessions', 0)} conversations with {stats.get('total_messages', 0)} total messages")
+    
+    # Interactive conversation selection
+    session_id = manager.interactive_conversation_picker()
+    
+    if session_id:
+        print(f"\n✅ Resuming conversation: {session_id}")
+        
+        # Resume with context
+        result = manager.resume_conversation(
+            session_id, 
+            "Let's continue where we left off. Can you summarize what we discussed?",
+            chat_type="normal"
+        )
+        
+        if "error" not in result:
+            print(f"🤖 Assistant: {result['response']}")
+            print(f"⚡ Processing time: {result.get('processing_time', 0)}ms")
+        
+    else:
+        print("\n✨ Starting new conversation")
+        
+        # Create new conversation
+        session_id = manager.create_conversation()
+        result = manager.send_message(
+            "Hello! I'd like to learn about advanced Python concepts. Can you help?",
+            session_id=session_id
+        )
+        
+        if "error" not in result:
+            print(f"🤖 Assistant: {result['response']}")
+            print(f"🆔 New session ID: {session_id}")
+    
+    # Demonstrate multi-type chat in same session
+    if session_id:
+        print("\n🔍 Trying RAG search in same conversation...")
+        rag_result = manager.send_message(
+            "What does our documentation say about Python best practices?",
+            session_id=session_id,
+            chat_type="rag",
+            max_results=3
+        )
+        
+        if "error" not in rag_result:
+            print(f"📚 RAG Response: {rag_result['response'][:200]}...")
+            print(f"🔎 Used {rag_result.get('search_results_count', 0)} knowledge base results")
+
+if __name__ == "__main__":
+    # Run basic example
+    print("Running basic example...")
+    main()
+    
+    print("\n" + "="*60 + "\n")
+    
+    # Run advanced example
+    print("Running advanced example...")
+    advanced_example()
+```
+
+**Simple utility script:**
+```python
+#!/usr/bin/env python3
+"""
+Simple LLM Assistant conversation utility
+Usage: python chat_client.py "Your message here" [session_id]
+"""
+
+import requests
+import sys
+import json
+import os
+from typing import Optional
+
+# Configuration
+BASE_URL = "http://localhost:8000"
+USERNAME = "admin"  # Change as needed
+PASSWORD = "admin123"  # Change as needed
+
+def get_session_token() -> Optional[str]:
+    """Get authentication token"""
+    response = requests.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"username": USERNAME, "password": PASSWORD}
+    )
+    return response.json().get("session_token") if response.status_code == 200 else None
+
+def send_chat(message: str, session_id: Optional[str] = None, chat_type: str = "normal") -> dict:
+    """Send chat message"""
+    token = get_session_token()
+    if not token:
+        return {"error": "Authentication failed"}
+    
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    endpoint_map = {
+        "normal": "/api/chat",
+        "rag": "/api/chat/rag",
+        "search": "/api/chat/web-search"
+    }
+    
+    payload = {"message": message}
+    if session_id:
+        payload["session_id"] = session_id
+    
+    response = requests.post(
+        f"{BASE_URL}{endpoint_map[chat_type]}",
+        headers=headers,
+        json=payload
+    )
+    
+    return response.json() if response.status_code == 200 else {"error": response.text}
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python chat_client.py \"Your message\" [session_id] [chat_type]")
+        print("Chat types: normal, rag, search")
+        sys.exit(1)
+    
+    message = sys.argv[1]
+    session_id = sys.argv[2] if len(sys.argv) > 2 else None
+    chat_type = sys.argv[3] if len(sys.argv) > 3 else "normal"
+    
+    print(f"💭 Sending message: {message}")
+    if session_id:
+        print(f"🔄 Resuming session: {session_id}")
+    
+    result = send_chat(message, session_id, chat_type)
+    
+    if "error" in result:
+        print(f"❌ Error: {result['error']}")
+    else:
+        print(f"\n🤖 Response:\n{result['response']}")
+        print(f"\n📝 Session ID: {result.get('session_id')}")
+        if result.get('processing_time'):
+            print(f"⚡ Time: {result['processing_time']}ms")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Key Features
+
+- **Cross-Chat-Type Support**: Same session_id works with `/api/chat`, `/api/chat/rag`, and `/api/chat/web-search`
+- **Automatic Context**: LLM sees full conversation history when resuming
+- **User Isolation**: Users can only access their own conversations
+- **Session Validation**: Invalid session_id returns 403 error
+- **Auto-Creation**: Omitting session_id creates new conversation
+- **24-Hour Timeout**: Sessions expire after 24 hours of inactivity
+- **Context Trimming**: Long conversations are automatically trimmed to fit context limits
 
 ---
 
