@@ -6,7 +6,6 @@ Handles conversation persistence, session management, and context retention
 
 import json
 import os
-import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
@@ -115,9 +114,21 @@ class ConversationMemory:
         except Exception as e:
             print(f"Error deleting session {session_id}: {e}")
     
-    def create_session(self, user_id: Optional[str] = None) -> str:
-        """Create a new conversation session"""
-        session_id = str(uuid.uuid4())
+    def create_session(self, user_id: Optional[str] = None, session_name: Optional[str] = None) -> str:
+        """Create a new conversation session with natural language identifier"""
+        # Generate a natural language session identifier
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if session_name:
+            session_id = f"{user_id}_{session_name}_{timestamp}" if user_id else f"{session_name}_{timestamp}"
+        else:
+            session_id = f"{user_id}_conversation_{timestamp}" if user_id else f"conversation_{timestamp}"
+        
+        # Ensure session_id is unique
+        counter = 1
+        original_id = session_id
+        while session_id in self.sessions:
+            session_id = f"{original_id}_{counter}"
+            counter += 1
         
         self.sessions[session_id] = {
             'id': session_id,
@@ -126,7 +137,7 @@ class ConversationMemory:
             'last_activity': datetime.now().isoformat(),
             'messages': [],
             'metadata': {
-                'title': 'New Conversation',
+                'title': session_name or 'New Conversation',
                 'model': 'llama3.2',
                 'total_messages': 0
             }

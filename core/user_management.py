@@ -6,9 +6,6 @@ Handles user authentication, session management, and per-user data storage
 
 import json
 import os
-import uuid
-import hashlib
-import hmac
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
@@ -133,7 +130,7 @@ class UserManager:
                 return False
         
         self.users[username] = {
-            'user_id': str(uuid.uuid4()),
+            'user_id': username,  # Use username as natural language identifier
             'username': username,
             'email': email,
             'password_hash': password,  # Store as plain text
@@ -225,21 +222,21 @@ class UserManager:
         return False
     
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:
-        """Get user data by user ID"""
-        for username, user_data in self.users.items():
-            if user_data['user_id'] == user_id:
-                # Return safe user data (without password hash)
-                return {
-                    'user_id': user_data['user_id'],
-                    'username': user_data['username'],
-                    'email': user_data['email'],
-                    'role': user_data['role'],
-                    'display_name': user_data['display_name'],
-                    'created_at': user_data['created_at'],
-                    'last_login': user_data['last_login'],
-                    'is_active': user_data['is_active'],
-                    'settings': user_data['settings']
-                }
+        """Get user data by user ID (now using username as ID)"""
+        if user_id in self.users:
+            user_data = self.users[user_id]
+            # Return safe user data (without password hash)
+            return {
+                'user_id': user_data['user_id'],
+                'username': user_data['username'],
+                'email': user_data['email'],
+                'role': user_data['role'],
+                'display_name': user_data['display_name'],
+                'created_at': user_data['created_at'],
+                'last_login': user_data['last_login'],
+                'is_active': user_data['is_active'],
+                'settings': user_data['settings']
+            }
         return None
     
     def update_user(self, username: str, updates: Dict) -> bool:
@@ -303,21 +300,14 @@ class UserManager:
         del self.users[username]
         self._save_users()
         
-        # Remove all sessions for this user
-        user_id = None
-        for user_data in self.users.values():
-            if user_data['username'] == username:
-                user_id = user_data['user_id']
-                break
-        
-        if user_id:
-            sessions_to_remove = [
-                token for token, session in self.sessions.items()
-                if session['user_id'] == user_id
-            ]
-            for token in sessions_to_remove:
-                del self.sessions[token]
-            self._save_sessions()
+        # Remove all sessions for this user (using username as user_id)
+        sessions_to_remove = [
+            token for token, session in self.sessions.items()
+            if session['user_id'] == username
+        ]
+        for token in sessions_to_remove:
+            del self.sessions[token]
+        self._save_sessions()
         
         return True
     
