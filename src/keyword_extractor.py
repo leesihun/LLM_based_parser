@@ -26,7 +26,12 @@ class KeywordExtractor:
         self.technical_keywords = self._load_technical_keywords()
         
         # Configuration settings
-        self.extraction_methods = self.config.get('extraction_methods', ['rule_based', 'llm_assisted'])
+        self.use_llm = self.config.get('use_llm', False)
+        if self.use_llm and self.llm_client:
+            self.extraction_methods = ['llm_assisted']
+        else:
+            self.extraction_methods = self.config.get('extraction_methods', ['rule_based', 'tfidf'])
+        
         self.max_keywords = self.config.get('max_keywords', 10)
         self.min_keyword_length = self.config.get('min_keyword_length', 2)
         self.enable_query_expansion = self.config.get('query_expansion', True)
@@ -209,41 +214,58 @@ class KeywordExtractor:
         return tfidf_scores
     
     def _extract_llm_assisted(self, text: str) -> List[Tuple[str, float]]:
-        """Use LLM to intelligently extract keywords"""
+        """Use LLM to intelligently extract keywords with custom system prompt"""
         if not self.llm_client:
             return []
         
         try:
-            prompt = f"""Extract the most important keywords and search terms from this text for web searching.
-
-Text: "{text}"
-
-Please provide:
-1. 5-10 most relevant keywords/phrases for searching
-2. Focus on technical terms, specific concepts, and actionable terms
-3. Avoid generic words like "help", "how", "what", etc.
-4. Include multi-word technical phrases if relevant
-5. Prioritize terms that would yield good search results
-
-Format your response as a simple comma-separated list of keywords/phrases, ordered by importance.
-
-Keywords:"""
-
-            response = self.llm_client.generate_response(prompt, max_tokens=200)
+            # Get LLM extraction configuration
+            llm_config = self.config.get('llm_extraction', {})
+            system_prompt = llm_config.get('system_prompt', '')
+            temperature = llm_config.get('temperature', 0.3)
+            max_tokens = llm_config.get('max_tokens', 100)
+            fallback_to_original = llm_config.get('fallback_to_original', True)
             
-            if response and 'content' in response:
-                keywords_text = response['content'].strip()
-                
-                # Parse the LLM response
-                keywords = []
-                for keyword in keywords_text.split(','):
-                    keyword = keyword.strip().strip('"\'')
-                    if keyword and len(keyword) >= self.min_keyword_length:
-                        # Assign higher scores to earlier keywords (LLM ordered by importance)
-                        score = 1.0 - (len(keywords) * 0.1)
-                        keywords.append((keyword.lower(), max(score, 0.1)))
-                
-                return keywords
+            if not system_prompt:
+                self.logger.warning("No system prompt configured for LLM keyword extraction")
+                return []
+            
+            # Create conversation context with system prompt and user query
+            conversation_context = [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': text}
+            ]
+            
+            # Call LLM with conversation context
+            response = self.llm_client.chat_completion(
+                conversation_context,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            # Extract content from response
+            if isinstance(response, dict):
+                keywords_text = response.get('content', '').strip()
+            else:
+                keywords_text = str(response).strip()
+            
+            if not keywords_text:
+                self.logger.warning("LLM returned empty response for keyword extraction")
+                if fallback_to_original:
+                    return [(text, 1.0)]
+                return []
+            
+            # Parse the LLM response
+            keywords = []
+            for keyword in keywords_text.split(','):
+                keyword = keyword.strip().strip('"\'')
+                if keyword and len(keyword) >= self.min_keyword_length:
+                    # Assign higher scores to earlier keywords (LLM ordered by importance)
+                    score = 1.0 - (len(keywords) * 0.1)
+                    keywords.append((keyword.lower(), max(score, 0.1)))
+            
+            self.logger.info(f"LLM extracted {len(keywords)} keywords: {[k[0] for k in keywords[:3]]}")
+            return keywords
                 
         except Exception as e:
             self.logger.warning(f"LLM-assisted extraction failed: {e}")

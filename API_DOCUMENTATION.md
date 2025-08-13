@@ -1425,6 +1425,517 @@ if __name__ == "__main__":
 
 ---
 
+## Web Search Troubleshooting
+
+### Common Issues with Web Search
+
+#### Issue: "Web search is disabled" error
+**Cause:** Web search is not enabled in configuration
+**Solution:** Check `config/config.json`:
+```json
+{
+  "web_search": {
+    "enabled": true
+  }
+}
+```
+
+#### Issue: "No adequate keywords found" error
+**Cause:** Keyword extraction is enabled but failing to find searchable terms
+**Solution 1:** Enable LLM-based keyword extraction in `config/config.json`:
+```json
+{
+  "web_search": {
+    "use_keyword_extraction": true,
+    "keyword_extraction": {
+      "enabled": true,
+      "use_llm": true,
+      "llm_extraction": {
+        "system_prompt": "You are a keyword extraction specialist. Extract 2-5 specific, searchable keywords or phrases from the user's query. Respond with ONLY a comma-separated list.",
+        "temperature": 0.3,
+        "max_tokens": 100,
+        "fallback_to_original": true
+      }
+    }
+  }
+}
+```
+
+**Solution 2:** Disable keyword extraction entirely:
+```json
+{
+  "web_search": {
+    "use_keyword_extraction": false
+  }
+}
+```
+
+**Solution 3:** Use more specific search terms in your query
+
+#### Issue: No search results returned
+**Cause:** Browser automation issues or network problems
+**Solution:** 
+1. Check if Chrome/Firefox is installed
+2. Test with the debug endpoint: `POST /api/search/test`
+3. Check server logs for Selenium errors
+
+### LLM-Based Keyword Extraction
+
+The system now supports intelligent keyword extraction using the LLM itself. This provides much better search results than traditional rule-based extraction.
+
+#### How It Works
+1. **User Query**: "How do I install Python on Windows?"
+2. **LLM Analysis**: LLM extracts optimal keywords: "Python installation, Windows, setup"
+3. **Web Search**: Searches using the LLM-generated keywords
+4. **Response**: Combines search results with conversational response
+
+#### Configuration
+```json
+{
+  "web_search": {
+    "use_keyword_extraction": true,
+    "keyword_extraction": {
+      "enabled": true,
+      "use_llm": true,
+      "llm_extraction": {
+        "system_prompt": "You are a keyword extraction specialist...",
+        "temperature": 0.3,
+        "max_tokens": 100,
+        "fallback_to_original": true
+      }
+    }
+  }
+}
+```
+
+#### System Prompt Customization
+You can customize the LLM's keyword extraction behavior by modifying the `system_prompt`. The prompt should:
+- Instruct the LLM to extract 2-5 keywords
+- Focus on searchable terms
+- Avoid generic words
+- Return comma-separated keywords only
+
+**Example prompts:**
+```
+"Extract specific technical keywords for web search. Return comma-separated list only."
+
+"You are a search optimization expert. Extract the most effective search terms from the user's query. Focus on technical terms, proper nouns, and specific concepts."
+```
+
+### Debug Endpoints
+
+#### Test Keyword Extraction
+**Endpoint:** `POST /api/search/extract-keywords`
+
+**Request:**
+```json
+{
+  "query": "How do I debug React applications?"
+}
+```
+
+**Response:**
+```json
+{
+  "query": "How do I debug React applications?", 
+  "extraction_result": {
+    "keywords": ["React debugging", "React troubleshooting", "JavaScript debugging"],
+    "queries": ["React debugging troubleshooting JavaScript"],
+    "method": "llm_assisted",
+    "adequate_keywords": true
+  },
+  "extractor_config": {
+    "use_llm": true,
+    "extraction_methods": ["llm_assisted"],
+    "llm_client_available": true
+  }
+}
+```
+
+#### Test Web Search Functionality
+**Endpoint:** `POST /api/search/test`
+
+**Request:**
+```json
+{
+  "query": "test search query"
+}
+```
+
+**Response:**
+```json
+{
+  "query": "test search query",
+  "result": {
+    "success": true,
+    "results": [...],
+    "error": null
+  },
+  "capabilities": {
+    "web_search_enabled": true,
+    "web_search_feature_available": true,
+    "keyword_extraction_enabled": false,
+    "config": {...}
+  }
+}
+```
+
+#### Check Search Capabilities
+**Endpoint:** `GET /api/search/status`
+
+**Response:**
+```json
+{
+  "enabled": true,
+  "keyword_extraction_enabled": false,
+  "extraction_methods": ["tfidf", "rules"],
+  "capabilities": {
+    "selenium_available": true,
+    "chrome_available": true
+  }
+}
+```
+
+### Python Debug Script
+
+Use the included `test_web_search.py` script to debug web search issues:
+
+```bash
+cd /path/to/project
+python test_web_search.py
+```
+
+This script will:
+1. Test server connectivity
+2. Check web search configuration  
+3. **Test LLM keyword extraction** (NEW!)
+4. Test direct web search functionality
+5. Test web search chat integration
+6. Provide detailed error information
+
+The script now includes comprehensive testing of the new LLM-based keyword extraction feature, showing you exactly how the LLM transforms your queries into optimal search keywords.
+
+---
+
+## Model Configuration API
+
+The system provides comprehensive model configuration endpoints that allow you to dynamically configure LLM models, switch between models, and manage model parameters without restarting the server.
+
+### List Available Models
+
+**Endpoint:** `GET /api/models/available`
+
+**Description:** Get list of all models available in Ollama
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "models": [
+    {
+      "name": "llama3.2:latest",
+      "size": 2648374762,
+      "modified_at": "2025-01-08T10:30:00Z",
+      "digest": "sha256:abc123...",
+      "details": {...}
+    }
+  ],
+  "total_count": 5,
+  "ollama_url": "http://localhost:11434"
+}
+```
+
+**Example:**
+```bash
+curl -X GET http://localhost:8000/api/models/available \
+  -H "Authorization: Bearer your-token"
+```
+
+### Get Current Model Configuration
+
+**Endpoint:** `GET /api/models/current`
+
+**Description:** Get current model configuration and parameters
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "current_model": {
+    "model": "gemma3:12b",
+    "host": "http://localhost:11434",
+    "timeout": 60000,
+    "num_ctx": 8192,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40
+  },
+  "status": "active"
+}
+```
+
+### Configure Model Parameters
+
+**Endpoint:** `POST /api/models/configure`
+
+**Description:** Dynamically configure model parameters
+
+**Headers:** `Authorization: Bearer <token>`, `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "model": "llama3.2:latest",
+  "temperature": 0.8,
+  "top_p": 0.9,
+  "top_k": 40,
+  "num_ctx": 4096,
+  "timeout": 30000
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Model configuration updated successfully",
+  "changes": ["model: llama3.2:latest", "temperature: 0.8"],
+  "new_config": {
+    "model": "llama3.2:latest",
+    "temperature": 0.8,
+    "top_p": 0.9,
+    "top_k": 40,
+    "num_ctx": 4096
+  }
+}
+```
+
+**Parameter Validation:**
+- `model`: Must exist in Ollama
+- `temperature`: 0.0 - 1.0
+- `top_p`: 0.0 - 1.0  
+- `top_k`: 1 - 100
+- `num_ctx`: 512 - 32768
+- `timeout`: 1000 - 300000 (milliseconds)
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/models/configure \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "llama3.2:latest",
+    "temperature": 0.8,
+    "num_ctx": 8192
+  }'
+```
+
+### Test Model Configuration
+
+**Endpoint:** `POST /api/models/test`
+
+**Description:** Test current model with a sample message
+
+**Headers:** `Authorization: Bearer <token>`, `Content-Type: application/json`
+
+**Request Body:**
+```json
+{
+  "message": "Hello, this is a test message"
+}
+```
+
+**Response:**
+```json
+{
+  "test_successful": true,
+  "model": "gemma3:12b",
+  "test_message": "Hello, this is a test message",
+  "response": "Hello! I'm working correctly. This is my test response...",
+  "processing_time_ms": 1250.5,
+  "tokens_per_second": 24.8,
+  "response_length": 145
+}
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/models/test \
+  -H "Authorization: Bearer your-token" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Test the current model"}'
+```
+
+### Get Model Presets
+
+**Endpoint:** `GET /api/models/presets`
+
+**Description:** Get predefined model configuration presets
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "presets": {
+    "creative": {
+      "name": "Creative",
+      "description": "High creativity for creative writing and brainstorming",
+      "temperature": 0.9,
+      "top_p": 0.9,
+      "top_k": 40,
+      "num_ctx": 4096
+    },
+    "balanced": {
+      "name": "Balanced", 
+      "description": "Balanced settings for general use",
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "top_k": 40,
+      "num_ctx": 4096
+    },
+    "precise": {
+      "name": "Precise",
+      "description": "Low creativity for factual and analytical tasks", 
+      "temperature": 0.3,
+      "top_p": 0.7,
+      "top_k": 20,
+      "num_ctx": 4096
+    },
+    "coding": {
+      "name": "Coding",
+      "description": "Optimized for code generation and programming",
+      "temperature": 0.2,
+      "top_p": 0.8,
+      "top_k": 30,
+      "num_ctx": 8192
+    },
+    "research": {
+      "name": "Research", 
+      "description": "Large context for research and document analysis",
+      "temperature": 0.4,
+      "top_p": 0.8,
+      "top_k": 25,
+      "num_ctx": 8192
+    }
+  },
+  "total_count": 5
+}
+```
+
+### Apply Model Preset
+
+**Endpoint:** `POST /api/models/preset/<preset_name>`
+
+**Description:** Apply a predefined configuration preset
+
+**Path Parameters:**
+- `preset_name`: One of: creative, balanced, precise, coding, research
+
+**Headers:** `Authorization: Bearer <token>`
+
+**Response:**
+```json
+{
+  "message": "Model configuration updated successfully",
+  "changes": ["temperature: 0.2", "top_p: 0.8", "top_k: 30", "num_ctx: 8192"],
+  "preset_applied": "coding",
+  "preset_description": "Optimized for code generation and programming",
+  "new_config": {
+    "temperature": 0.2,
+    "top_p": 0.8,
+    "top_k": 30,
+    "num_ctx": 8192
+  }
+}
+```
+
+**Example:**
+```bash
+curl -X POST http://localhost:8000/api/models/preset/coding \
+  -H "Authorization: Bearer your-token"
+```
+
+### Model Configuration Examples
+
+#### Switch to a Creative Model
+```python
+import requests
+
+# Configure for creative writing
+response = requests.post('http://localhost:8000/api/models/configure',
+    headers={'Authorization': 'Bearer your-token', 'Content-Type': 'application/json'},
+    json={
+        'temperature': 0.9,
+        'top_p': 0.95,
+        'top_k': 50,
+        'num_ctx': 4096
+    }
+)
+
+if response.status_code == 200:
+    print("✅ Configured for creative mode")
+    print(f"Changes: {response.json()['changes']}")
+```
+
+#### Switch Model and Test
+```python
+# Switch to a different model
+response = requests.post('http://localhost:8000/api/models/configure',
+    headers={'Authorization': 'Bearer your-token', 'Content-Type': 'application/json'},
+    json={'model': 'llama3.2:latest'}
+)
+
+if response.status_code == 200:
+    # Test the new model
+    test_response = requests.post('http://localhost:8000/api/models/test',
+        headers={'Authorization': 'Bearer your-token', 'Content-Type': 'application/json'},
+        json={'message': 'Hello from the new model!'}
+    )
+    
+    if test_response.status_code == 200:
+        test_data = test_response.json()
+        print(f"✅ Model test: {test_data['response']}")
+        print(f"Processing time: {test_data['processing_time_ms']}ms")
+```
+
+#### Apply Preset for Specific Use Case
+```python
+# Apply coding preset for programming tasks
+response = requests.post('http://localhost:8000/api/models/preset/coding',
+    headers={'Authorization': 'Bearer your-token'}
+)
+
+if response.status_code == 200:
+    print("✅ Applied coding preset")
+    
+    # Now use the optimized model for code generation
+    chat_response = requests.post('http://localhost:8000/api/chat',
+        headers={'Authorization': 'Bearer your-token', 'Content-Type': 'application/json'},
+        json={'message': 'Write a Python function to sort a list'}
+    )
+```
+
+### Python Test Script
+
+Use the included `test_model_config.py` script to test all model configuration features:
+
+```bash
+cd /path/to/project
+python test_model_config.py
+```
+
+This comprehensive script tests:
+- Model availability listing
+- Current configuration retrieval
+- Dynamic parameter configuration
+- Model switching
+- Preset application
+- Model performance testing
+
+---
+
 ## Admin Endpoints
 
 ### List All Users

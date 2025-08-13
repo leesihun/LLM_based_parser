@@ -23,6 +23,7 @@ from src.web_search_feature import WebSearchFeature
 # Import API endpoints
 from api.chat import create_chat_endpoints
 from api.conversations import create_conversation_endpoints
+from api.model_config import create_model_config_endpoints
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -292,6 +293,79 @@ def web_search():
         return jsonify({'error': str(e)}), 500
 
 # Web search chat endpoint is now handled by api/chat.py
+
+@app.route('/api/search/test', methods=['POST'])
+@require_auth
+def test_web_search():
+    """Test web search functionality for debugging"""
+    try:
+        data = request.get_json()
+        query = data.get('query', 'test search query')
+        
+        # Get search configuration
+        search_config = llm_client.config.get('web_search', {})
+        
+        # Test web search feature status
+        capabilities = {
+            'web_search_enabled': search_config.get('enabled', False),
+            'web_search_feature_available': web_search_feature is not None,
+            'keyword_extraction_enabled': getattr(web_search_feature, 'use_keyword_extraction', None),
+            'config': search_config
+        }
+        
+        if not web_search_feature:
+            return jsonify({
+                'error': 'Web search feature not available',
+                'capabilities': capabilities
+            }), 500
+        
+        # Test the search
+        result = web_search_feature.search_web(query, max_results=3, format_for_llm=False)
+        
+        return jsonify({
+            'query': query,
+            'result': result,
+            'capabilities': capabilities
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Test failed: {str(e)}',
+            'query': query
+        }), 500
+
+@app.route('/api/search/extract-keywords', methods=['POST'])
+@require_auth
+def test_keyword_extraction():
+    """Test keyword extraction directly"""
+    try:
+        data = request.get_json()
+        query = data.get('query', 'test query')
+        
+        if not web_search_feature or not web_search_feature.keyword_extractor:
+            return jsonify({
+                'error': 'Keyword extractor not available',
+                'query': query
+            }), 500
+        
+        # Test keyword extraction directly
+        result = web_search_feature.keyword_extractor.extract_keywords(query)
+        
+        return jsonify({
+            'query': query,
+            'extraction_result': result,
+            'extractor_config': {
+                'use_llm': web_search_feature.keyword_extractor.use_llm,
+                'extraction_methods': web_search_feature.keyword_extractor.extraction_methods,
+                'llm_client_available': web_search_feature.keyword_extractor.llm_client is not None
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Keyword extraction test failed: {str(e)}',
+            'query': query
+        }), 500
 
 @app.route('/api/search/keyword-extraction', methods=['GET'])
 @require_auth
@@ -740,6 +814,7 @@ def get_local_ip():
 # Register API endpoints
 create_chat_endpoints(app, llm_client, memory, rag_system, file_handler, web_search_feature, require_auth)
 create_conversation_endpoints(app, memory, require_auth)
+create_model_config_endpoints(app, llm_client, require_auth)
 
 def main():
     """Main function to start the server"""

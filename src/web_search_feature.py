@@ -31,7 +31,8 @@ class WebSearchFeature:
         # Initialize keyword extractor
         keyword_config = self.config.get('keyword_extraction', {})
         self.keyword_extractor = KeywordExtractor(keyword_config, llm_client)
-        self.use_keyword_extraction = keyword_config.get('enabled', True)
+        # Check both top-level and nested keyword extraction settings
+        self.use_keyword_extraction = self.config.get('use_keyword_extraction', keyword_config.get('enabled', False))
         
         # Set up logging
         self.logger = logging.getLogger(__name__)
@@ -78,31 +79,53 @@ class WebSearchFeature:
             
             if extract_keywords and self.keyword_extractor:
                 try:
+                    self.logger.info(f"Starting LLM-based keyword extraction for: {query}")
                     extraction_info = self.keyword_extractor.extract_keywords(query)
+                    
                     if extraction_info and extraction_info.get('adequate_keywords') and extraction_info.get('queries'):
                         search_queries = extraction_info['queries']
-                        self.logger.info(f"Extracted {len(extraction_info.get('keywords', []))} adequate keywords from: {query}")
-                        self.logger.info(f"Generated {len(search_queries)} optimized queries")
+                        keywords = extraction_info.get('keywords', [])
+                        method = extraction_info.get('method', 'unknown')
+                        
+                        self.logger.info(f"✓ LLM extracted {len(keywords)} keywords using {method} method")
+                        self.logger.info(f"✓ Keywords: {keywords[:5]}")  # Show first 5
+                        self.logger.info(f"✓ Generated {len(search_queries)} optimized queries: {search_queries}")
                     else:
                         reason = "no adequate keywords found" if not extraction_info.get('adequate_keywords') else "no queries generated"
-                        self.logger.info(f"Keyword extraction failed: {reason}")
+                        self.logger.warning(f"✗ Keyword extraction failed: {reason}")
+                        self.logger.warning(f"✗ Extraction info: {extraction_info}")
+                        
+                        # For LLM-based extraction, we might want to be more lenient
+                        # If LLM was used but failed, fall back to original query
+                        llm_config = self.config.get('keyword_extraction', {})
+                        if llm_config.get('use_llm') and llm_config.get('llm_extraction', {}).get('fallback_to_original', True):
+                            self.logger.info(f"✓ Falling back to original query: {query}")
+                            search_queries = [query]
+                        else:
+                            return {
+                                'success': False,
+                                'error': f'Cannot perform web search: {reason}. Query too generic or lacks searchable terms.',
+                                'results': [],
+                                'query': query,
+                                'timestamp': datetime.now().isoformat(),
+                                'extraction_info': extraction_info
+                            }
+                except Exception as e:
+                    self.logger.error(f"✗ Keyword extraction failed with exception: {e}")
+                    
+                    # Check if we should fall back to original query
+                    llm_config = self.config.get('keyword_extraction', {})
+                    if llm_config.get('use_llm') and llm_config.get('llm_extraction', {}).get('fallback_to_original', True):
+                        self.logger.info(f"✓ Exception fallback to original query: {query}")
+                        search_queries = [query]
+                    else:
                         return {
                             'success': False,
-                            'error': f'Cannot perform web search: {reason}. Query too generic or lacks searchable terms.',
+                            'error': f'Keyword extraction failed: {str(e)}',
                             'results': [],
                             'query': query,
-                            'timestamp': datetime.now().isoformat(),
-                            'extraction_info': extraction_info
+                            'timestamp': datetime.now().isoformat()
                         }
-                except Exception as e:
-                    self.logger.error(f"Keyword extraction failed: {e}")
-                    return {
-                        'success': False,
-                        'error': f'Keyword extraction failed: {str(e)}',
-                        'results': [],
-                        'query': query,
-                        'timestamp': datetime.now().isoformat()
-                    }
             else:
                 # If keyword extraction is disabled, use original query only
                 search_queries = [query]

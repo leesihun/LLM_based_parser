@@ -14,10 +14,16 @@ class LLMClient:
     
     def __init__(self, config_path: str = "config/config.json"):
         """Initialize LLM client with configuration"""
+        self.config_path = config_path
         self.config = self._load_config(config_path)
-        self.ollama_url = self.config["ollama"]["host"]
-        self.model = self.config["ollama"]["model"]
-        self.timeout = self.config["ollama"]["timeout"] / 1000
+        self._initialize_client()
+    
+    def _initialize_client(self):
+        """Initialize or reinitialize client with current configuration"""
+        ollama_config = self.config["ollama"]
+        self.ollama_url = ollama_config["host"]
+        self.model = ollama_config["model"]
+        self.timeout = ollama_config["timeout"] / 1000
         self._preload_model()
     
     def _load_config(self, config_path: str) -> Dict[str, Any]:
