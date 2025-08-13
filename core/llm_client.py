@@ -90,23 +90,33 @@ class LLMClient:
         except json.JSONDecodeError:
             return "Error: Invalid response from Ollama"
     
-    def chat_completion(self, messages: list) -> dict:
+    def chat_completion(self, messages: list, temperature: float = None, max_tokens: int = None) -> dict:
         """Chat completion using Ollama chat API with timing metrics"""
         import time
         url = f"{self.ollama_url}/api/chat"
+        
+        # Use passed parameters or fall back to config defaults
+        effective_temperature = temperature if temperature is not None else self.config.get("ollama", {}).get("temperature", 0.7)
+        effective_max_tokens = max_tokens if max_tokens is not None else None
+        
+        options = {
+            "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
+            "temperature": effective_temperature,
+            "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
+            "top_k": self.config.get("ollama", {}).get("top_k", 40),
+            "num_gpu": -1,  # Use all available GPUs
+            "num_thread": 1  # Reduce CPU competition with GPU
+        }
+        
+        # Add max_tokens if specified (Ollama uses num_predict)
+        if effective_max_tokens is not None:
+            options["num_predict"] = effective_max_tokens
         
         payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
-            "options": {
-                "num_ctx": self.config.get("ollama", {}).get("num_ctx", 4096),  # Context window size
-                "temperature": self.config.get("ollama", {}).get("temperature", 0.7),
-                "top_p": self.config.get("ollama", {}).get("top_p", 0.9),
-                "top_k": self.config.get("ollama", {}).get("top_k", 40),
-                "num_gpu": -1,  # Use all available GPUs
-                "num_thread": 1  # Reduce CPU competition with GPU
-            }
+            "options": options
         }
         
         try:

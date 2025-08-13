@@ -32,6 +32,8 @@
       "search_mode": [
         "You have access to current internet search results.",
         "Use the provided search results to answer questions with up-to-date information.",
+        "First, of the given context, provide a summary of the most important information.",
+        "If you think the given context is not relevant to the user's question, say so and provide general guidance if possible.",
         "Always cite the sources from the search results when providing information.",
         "If the search results don't contain relevant information, say so and provide general guidance if possible.",
         "Based on the given context, provide one clear answer to the user's question."
@@ -54,7 +56,7 @@
         "llm_extraction": {
           "system_prompt": "You are a keyword extraction specialist. Your job is to analyze user queries and extract the most effective search keywords. Extract 2-5 specific, searchable keywords or phrases that will help find relevant information. Focus on:\n\n1. Technical terms and specific concepts\n2. Proper nouns (names, places, technologies)\n3. Key descriptive words\n4. Avoid generic words like 'help', 'how', 'what', 'the', 'and'\n\nRespond with ONLY a comma-separated list of keywords/phrases, nothing else.\n\nExamples:\nUser: 'How do I install Python on Windows?'\nKeywords: Python installation, Windows, setup\n\nUser: 'What are the latest developments in artificial intelligence?'\nKeywords: artificial intelligence, AI developments, latest AI news, machine learning trends\n\nUser: 'Help me debug my React application'\nKeywords: React debugging, React troubleshooting, JavaScript debugging, Order the keywords in importance, from most to least important.",
           "temperature": 0.3,
-          "max_tokens": 10,
+          "max_tokens": 100,
           "fallback_to_original": true
         }
       }

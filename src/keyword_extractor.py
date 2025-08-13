@@ -246,8 +246,14 @@ class KeywordExtractor:
             # Extract content from response
             if isinstance(response, dict):
                 keywords_text = response.get('content', '').strip()
+                # Check if response contains an error
+                if keywords_text.lower().startswith('error'):
+                    raise Exception(f"LLM returned error: {keywords_text}")
             else:
                 keywords_text = str(response).strip()
+                # Check if response contains an error
+                if keywords_text.lower().startswith('error'):
+                    raise Exception(f"LLM returned error: {keywords_text}")
             
             if not keywords_text:
                 self.logger.warning("LLM returned empty response for keyword extraction")
