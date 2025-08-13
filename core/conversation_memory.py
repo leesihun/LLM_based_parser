@@ -17,7 +17,7 @@ class ConversationMemory:
         self.storage_dir = storage_dir
         self.sessions: Dict[str, Dict] = {}
         self.max_context_length = 4000  # Maximum tokens to keep in context
-        self.session_timeout = 24 * 60 * 60  # 24 hours in seconds
+        self.session_timeout = None  # Never expire sessions
         
         # Create storage directory structure for per-user data
         os.makedirs(storage_dir, exist_ok=True)
@@ -85,6 +85,10 @@ class ConversationMemory:
     
     def _cleanup_old_sessions(self):
         """Remove sessions older than timeout period"""
+        # If session_timeout is None, sessions never expire
+        if self.session_timeout is None:
+            return
+            
         current_time = datetime.now()
         expired_sessions = []
         
@@ -301,5 +305,5 @@ class ConversationMemory:
             'storage_size_bytes': storage_size,
             'storage_size_mb': round(storage_size / (1024 * 1024), 2),
             'max_context_length': self.max_context_length,
-            'session_timeout_hours': self.session_timeout / 3600
+            'session_timeout_hours': None if self.session_timeout is None else self.session_timeout / 3600
         }

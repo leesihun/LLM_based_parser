@@ -21,7 +21,7 @@ class UserManager:
         self.sessions_file = sessions_file
         self.users: Dict[str, Dict] = {}
         self.sessions: Dict[str, Dict] = {}
-        self.session_timeout = 24 * 60 * 60  # 24 hours in seconds
+        self.session_timeout = None  # Never expire sessions
         
         # Load existing users and sessions
         self._load_users()
@@ -103,6 +103,10 @@ class UserManager:
     
     def _cleanup_expired_sessions(self):
         """Remove expired sessions"""
+        # If session_timeout is None, sessions never expire
+        if self.session_timeout is None:
+            return
+            
         current_time = datetime.now()
         expired_sessions = []
         
@@ -198,12 +202,13 @@ class UserManager:
         
         session_data = self.sessions[session_token]
         
-        # Check if session is expired
-        last_activity = datetime.fromisoformat(session_data['last_activity'])
-        if (datetime.now() - last_activity).total_seconds() > self.session_timeout:
-            del self.sessions[session_token]
-            self._save_sessions()
-            return None
+        # Check if session is expired (only if timeout is set)
+        if self.session_timeout is not None:
+            last_activity = datetime.fromisoformat(session_data['last_activity'])
+            if (datetime.now() - last_activity).total_seconds() > self.session_timeout:
+                del self.sessions[session_token]
+                self._save_sessions()
+                return None
         
         # Update last activity
         session_data['last_activity'] = datetime.now().isoformat()
@@ -371,5 +376,5 @@ class UserManager:
             'admin_users': admin_users,
             'inactive_users': total_users - active_users,
             'active_sessions': active_sessions,
-            'session_timeout_hours': self.session_timeout / 3600
+            'session_timeout_hours': None if self.session_timeout is None else self.session_timeout / 3600
         }
