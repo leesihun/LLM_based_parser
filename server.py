@@ -63,48 +63,7 @@ def require_admin(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def extract_llm_response_data(llm_response):
-    """Helper function to extract response data and metrics"""
-    if isinstance(llm_response, dict):
-        return {
-            'content': llm_response.get('content', ''),
-            'processing_time': llm_response.get('processing_time', 0),
-            'tokens_per_second': llm_response.get('tokens_per_second', 0)
-        }
-    else:
-        # Old format - just a string
-        return {
-            'content': llm_response,
-            'processing_time': 0,
-            'tokens_per_second': 0
-        }
-
-def get_combined_system_prompt(mode='default'):
-    """Get combined universal + mode-specific system prompt"""
-    system_config = llm_client.config.get('system_prompt', {})
-    if not system_config.get('enabled', False):
-        return None
-    
-    # Handle both string and array formats
-    def format_prompt(prompt_data):
-        if isinstance(prompt_data, list):
-            return '\n'.join(prompt_data)
-        elif isinstance(prompt_data, str):
-            return prompt_data
-        else:
-            return ''
-    
-    universal_prompt = format_prompt(system_config.get('universal', ''))
-    mode_prompt = format_prompt(system_config.get(mode, system_config.get('default', '')))
-    
-    if universal_prompt and mode_prompt:
-        return f"{universal_prompt}\n\n{mode_prompt}"
-    elif universal_prompt:
-        return universal_prompt
-    elif mode_prompt:
-        return mode_prompt
-    else:
-        return None
+# Helper functions are now in individual API modules
 
 @app.route('/')
 def serve_index():
@@ -201,59 +160,7 @@ def change_password():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/chat', methods=['POST'])
-@require_auth
-def chat():
-    """Handle chat requests with conversation memory (authenticated)"""
-    try:
-        data = request.get_json()
-        user_message = data.get('message', '')
-        session_id = data.get('session_id', None)
-        user_id = request.user['user_id']
-        
-        if not user_message:
-            return jsonify({'error': 'No message provided'}), 400
-        
-        # Create new session if none provided (with user_id)
-        if not session_id:
-            session_id = memory.create_session(user_id)
-        
-        # Verify session belongs to current user
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found or access denied'}), 403
-        
-        # Add user message to conversation memory
-        memory.add_message(session_id, 'user', user_message)
-        
-        # Get full conversation context for LLM
-        conversation_context = memory.get_context_for_llm(session_id)
-        
-        # Add combined system prompt if enabled and not already present
-        if conversation_context:
-            # Check if system message already exists
-            has_system = any(msg['role'] == 'system' for msg in conversation_context)
-            if not has_system:
-                system_prompt = get_combined_system_prompt('default')
-                if system_prompt:
-                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
-        
-        # Generate response using full conversation context
-        llm_response = llm_client.chat_completion(conversation_context)
-        response_data = extract_llm_response_data(llm_response)
-        
-        # Add assistant response to conversation memory
-        memory.add_message(session_id, 'assistant', response_data['content'])
-        
-        return jsonify({
-            'response': response_data['content'],
-            'session_id': session_id,
-            'processing_time': response_data['processing_time'],
-            'tokens_per_second': response_data['tokens_per_second']
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Chat endpoints are now handled by api/chat.py
 
 @app.route('/api/generate', methods=['POST'])
 def generate():
@@ -337,72 +244,7 @@ def rag_search():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/rag/chat', methods=['POST'])
-@require_auth
-def rag_chat():
-    """Chat with RAG context"""
-    try:
-        data = request.get_json()
-        user_message = data.get('message', '')
-        session_id = data.get('session_id', None)
-        user_id = request.user['user_id']
-        
-        if not user_message:
-            return jsonify({'error': 'Message is required'}), 400
-        
-        # Create new session if none provided
-        if not session_id:
-            session_id = memory.create_session(user_id)
-        
-        # Verify session belongs to current user
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found or access denied'}), 403
-        
-        # Get RAG context
-        rag_context = rag_system.get_context_for_query(user_message)
-        
-        # Add user message to conversation memory
-        memory.add_message(session_id, 'user', user_message)
-        
-        # Create enhanced prompt with RAG context
-        enhanced_message = f"""Context from knowledge base:
-{rag_context}
-
-User question: {user_message}
-
-Please answer the question using the provided context when relevant."""
-        
-        # Get full conversation context for LLM
-        conversation_context = memory.get_context_for_llm(session_id)
-        
-        # Add RAG-specific combined system prompt if enabled and not already present
-        if conversation_context:
-            # Check if system message already exists
-            has_system = any(msg['role'] == 'system' for msg in conversation_context)
-            if not has_system:
-                system_prompt = get_combined_system_prompt('rag_mode')
-                if system_prompt:
-                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
-        
-        # Replace the last user message with enhanced version
-        if conversation_context and len(conversation_context) > 0:
-            conversation_context[-1]['content'] = enhanced_message
-        
-        # Generate response using enhanced context
-        response = llm_client.chat_completion(conversation_context)
-        
-        # Add assistant response to conversation memory
-        memory.add_message(session_id, 'assistant', response)
-        
-        return jsonify({
-            'response': response,
-            'session_id': session_id,
-            'rag_context_used': True
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# RAG chat endpoint is now handled by api/chat.py
 
 @app.route('/api/rag/stats', methods=['GET'])
 @require_auth
@@ -449,99 +291,7 @@ def web_search():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/search/chat', methods=['POST'])
-@require_auth
-def search_chat():
-    """Chat with web search context"""
-    try:
-        data = request.get_json()
-        user_message = data.get('message', '')
-        session_id = data.get('session_id', None)
-        user_id = request.user['user_id']
-        
-        if not user_message:
-            return jsonify({'error': 'Message is required'}), 400
-        
-        # Check if web search is enabled
-        search_config = llm_client.config.get('web_search', {})
-        if not search_config.get('enabled', False):
-            return jsonify({'error': 'Web search is disabled'}), 403
-        
-        # Create new session if none provided
-        if not session_id:
-            session_id = memory.create_session(user_id)
-        
-        # Verify session belongs to current user
-        session_data = memory.get_session(session_id)
-        if not session_data or session_data.get('user_id') != user_id:
-            return jsonify({'error': 'Session not found or access denied'}), 403
-        
-        # Measure search processing time
-        import time
-        search_start_time = time.time()
-        
-        # Perform web search with keyword extraction
-        search_result = web_search_feature.search_web(user_message, search_config.get('max_results', 5), format_for_llm=True)
-        search_results = search_result.get('formatted_context', 'No search results available')
-        
-        search_processing_time = (time.time() - search_start_time) * 1000
-        
-        # Add user message to conversation memory
-        memory.add_message(session_id, 'user', user_message)
-        
-        # Create enhanced prompt with search results
-        enhanced_message = f"""Web Search Results:
-{search_results}
-
-User Question: {user_message}
-
-Please answer the user's question using the search results above when relevant. Always cite your sources."""
-        
-        # Get full conversation context for LLM
-        conversation_context = memory.get_context_for_llm(session_id)
-        
-        # Add search-specific combined system prompt if enabled and not already present
-        if conversation_context:
-            # Check if system message already exists
-            has_system = any(msg['role'] == 'system' for msg in conversation_context)
-            if not has_system:
-                system_prompt = get_combined_system_prompt('search_mode')
-                if system_prompt:
-                    conversation_context.insert(0, {'role': 'system', 'content': system_prompt})
-        
-        # Replace the last user message with enhanced version
-        if conversation_context and len(conversation_context) > 0:
-            conversation_context[-1]['content'] = enhanced_message
-        
-        # Generate response using enhanced context
-        llm_response = llm_client.chat_completion(conversation_context)
-        response_data = extract_llm_response_data(llm_response)
-        
-        # Add assistant response to conversation memory
-        memory.add_message(session_id, 'assistant', response_data['content'])
-        
-        return jsonify({
-            'response': response_data['content'],
-            'session_id': session_id,
-            'search_context_used': search_result.get('success', False),
-            'search_results_count': search_result.get('result_count', 0),
-            'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
-            'optimized_queries': search_result.get('queries_tried', [user_message]),
-            'successful_query': search_result.get('successful_query'),
-            'processing_time': response_data['processing_time'],
-            'tokens_per_second': response_data['tokens_per_second'],
-            'search_processing_time': search_processing_time
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# Alias for web search chat to match frontend expectations
-@app.route('/api/chat/web-search', methods=['POST'])
-@require_auth
-def web_search_chat():
-    """Web search chat endpoint - alias for /api/search/chat"""
-    return search_chat()
+# Web search chat endpoint is now handled by api/chat.py
 
 @app.route('/api/search/keyword-extraction', methods=['GET'])
 @require_auth
