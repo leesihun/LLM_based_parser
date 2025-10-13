@@ -173,6 +173,32 @@ class SeleniumSearcher:
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors-list')
 
+        # Disable Google services and background network requests
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-breakpad')
+        chrome_options.add_argument('--disable-component-extensions-with-background-pages')
+        chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-sync')  # Disable Chrome sync
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--no-default-browser-check')
+        chrome_options.add_argument('--metrics-recording-only')
+        chrome_options.add_argument('--mute-audio')
+
+        # Disable Google Cloud Messaging (GCM) - this is what's causing the quota error
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
+        chrome_options.add_experimental_option('prefs', {
+            'profile.default_content_setting_values.notifications': 2,  # Block notifications
+            'credentials_enable_service': False,
+            'profile.password_manager_enabled': False,
+            'profile.default_content_settings.popups': 0,
+        })
+
         # User agent to avoid detection
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
@@ -239,93 +265,111 @@ class SeleniumSearcher:
     
     
     def _search_google(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """Search Bing using Selenium"""
+        """Search Google using Selenium"""
         results = []
 
         try:
             # Ensure browser session is alive before searching
             self._ensure_browser_ready()
 
-            # Navigate to Bing
-            search_url = f"https://www.bing.com/search?q={query}"
+            # Navigate to Google
+            search_url = f"https://www.google.com/search?q={query}"
             self.logger.info(f"Navigating to: {search_url}")
             self.driver.get(search_url)
 
-            # Wait for results - Bing uses #b_results container
+            # Wait for results - Google uses #search container
             WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "#b_results"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#search"))
             )
-            
-            # Find result containers
-            result_elements = self.driver.find_elements(By.CSS_SELECTOR, ".b_algo")
-            
+
+            # Find result containers - Google uses div.g for each result
+            result_elements = self.driver.find_elements(By.CSS_SELECTOR, "div.g")
+
             for element in result_elements[:max_results]:
                 try:
-                    # Extract title and URL
-                    title_element = element.find_element(By.CSS_SELECTOR, "h2 a")
+                    # Extract title - Google uses h3 inside a link
+                    title_element = element.find_element(By.CSS_SELECTOR, "h3")
                     title = title_element.text.strip()
-                    url = title_element.get_attribute("href")
-                    
-                    # Extract snippet
+
+                    # Get the parent anchor tag for URL
+                    link_element = element.find_element(By.CSS_SELECTOR, "a")
+                    url = link_element.get_attribute("href")
+
+                    # Extract snippet - Google uses various classes for snippets
                     snippet = ""
                     try:
-                        snippet_element = element.find_element(By.CSS_SELECTOR, ".b_caption p")
+                        snippet_element = element.find_element(By.CSS_SELECTOR, ".VwiC3b")
                         snippet = snippet_element.text.strip()[:200]
                     except:
-                        pass
-                    
-                    if title and url:
-                        results.append({
-                            'title': title,
-                            'snippet': snippet + "..." if snippet else "Bing search result",
-                            'url': url,
-                            'source': 'Bing'
-                        })
-                        
+                        try:
+                            # Alternative selector
+                            snippet_element = element.find_element(By.CSS_SELECTOR, "[data-sncf]")
+                            snippet = snippet_element.text.strip()[:200]
+                        except:
+                            try:
+                                # Fallback: another common snippet class
+                                snippet_element = element.find_element(By.CSS_SELECTOR, ".lEBKkf")
+                                snippet = snippet_element.text.strip()[:200]
+                            except:
+                                pass
+
+                    # Skip if no title or URL, or URL is not a valid http(s) link
+                    if not title or not url or not url.startswith('http'):
+                        continue
+
+                    results.append({
+                        'title': title,
+                        'snippet': snippet + "..." if snippet else "Google search result",
+                        'url': url,
+                        'source': 'Google'
+                    })
+
                 except Exception as e:
-                    self.logger.debug(f"Error parsing Bing result: {e}")
+                    self.logger.debug(f"Error parsing Google result: {e}")
                     continue
-            
+
         except Exception as e:
-            self.logger.error(f"Bing search failed: {e}")
-        
+            self.logger.error(f"Google search failed: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
         return results
     
     
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, str]]:
         """
-        Perform Bing search using browser automation
-        
+        Perform Google search using browser automation
+
         Args:
             query: Search query string
             max_results: Maximum number of results to return
-            
+
         Returns:
             List of search results with title, snippet, and URL
         """
         if not query or not query.strip():
             return []
-        
+
         max_results = max_results or self.max_results
-        
-        # Use Bing search only
+
+        # Use Google search
         results = self._search_google(query, max_results)
         if results:
-            self.logger.info(f"Found {len(results)} results from Bing")
+            self.logger.info(f"Found {len(results)} results from Google")
             time.sleep(self.delay_between_requests)
         else:
-            self.logger.warning("Bing search returned no results")
-            
+            self.logger.warning("Google search returned no results")
+
         return results
     
     def search_with_context(self, query: str, max_results: Optional[int] = None) -> str:
         """Search and format results for LLM context"""
         results = self.search(query, max_results)
-        
+
         if not results:
             return f"No browser search results found for: {query}"
-        
-        context = f"Bing Search Results for '{query}':\n\n"
+
+        context = f"Google Search Results for '{query}':\n\n"
         
         for i, result in enumerate(results, 1):
             context += f"{i}. **{result['title']}**\n"
@@ -351,7 +395,7 @@ class SeleniumSearcher:
                 'success': len(results) > 0,
                 'result_count': len(results),
                 'test_query': test_query,
-                'engines_working': ['Bing'],
+                'engines_working': ['Google'],
                 'sample_result': results[0] if results else None,
                 'timestamp': datetime.now().isoformat()
             }
@@ -394,7 +438,7 @@ def test_selenium_search():
         
         if test_result['success']:
             print(f"Found {test_result['result_count']} results")
-            print("Using Bing search engine")
+            print("Using Google search engine")
             
             if test_result['sample_result']:
                 sample = test_result['sample_result']
