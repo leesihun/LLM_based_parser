@@ -1,517 +1,258 @@
-# CLAUDE.md - Development Guide
+# CLAUDE.md
 
-This file provides comprehensive guidance for Claude Code when working with the HE Team LLM Assistant codebase.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 🎯 Project Overview
+## Quick Setup & Commands
 
-The HE Team LLM Assistant is a sophisticated multi-modal AI system designed to provide:
+### Development Commands
+```bash
+# Start the main server
+python server.py
 
-1. **Normal Chat**: Standard AI conversations with configurable system prompts
-2. **RAG-Enhanced Chat**: Knowledge base integration using ChromaDB for semantic search
-3. **Intelligent Web Search**: Selenium-based search with advanced keyword extraction
-4. **File Processing**: Document upload, analysis, and conversation about file contents
-5. **Multi-User System**: Secure authentication, session management, and data isolation
+# Run system initialization (processes Excel data, sets up RAG)
+python setup_system.py
 
-## 🏗️ Architecture Principles
+# Install dependencies
+pip install -r requirements.txt
 
-### Code Organization
-- **Modular Design**: Each feature is isolated in its own module
-- **API-First**: Clean RESTful API with well-documented endpoints
-- **Separation of Concerns**: Core logic, API layer, and web interface are separate
-- **Configuration-Driven**: All settings managed through JSON configuration files
-
-### File Structure Standards
-```
-/core/          # Core system functionality (LLM, memory, auth)
-/src/           # Feature modules (RAG, search, file handling)
-/api/           # RESTful API endpoints (auth, chat, search, system)
-/config/        # Configuration files
-/static/        # Web interface files
-/data/          # Persistent data (knowledge base, uploads)
-/auth/          # Authentication data
-/conversations/ # User conversation history
+# Test individual components
+python -c "from src.keyword_extractor import KeywordExtractor; print('Keyword extraction OK')"
+python -c "from src.rag_system import RAGSystem; print('RAG system OK')"
+python -c "from src.selenium_search import SeleniumSearcher; print('Web search OK')"
 ```
 
-## 🔧 Development Guidelines
+### Key Configuration Files
+- `config/config.json` - Main system configuration (Ollama, web search, RAG settings)
+- `config/search_config.json` - Web search specific settings
+- `auth/users.json` - User accounts and authentication data
 
-### When Adding New Features
+## Architecture Overview
 
-1. **Create Feature Module**: Place new functionality in `/src/` directory
-2. **Add API Endpoints**: Create corresponding endpoints in `/api/` directory
-3. **Update Configuration**: Add necessary config options to `config/config.json`
-4. **Document Everything**: Include comprehensive docstrings and comments
-5. **Test Thoroughly**: Test all functionality and edge cases
+This is a multi-modal AI assistant system built on Flask with the following key components:
 
-### Code Standards
+### Core Architecture Pattern
+The system follows a modular API-first architecture:
+- **`core/`** - Core system services (LLM client, auth, memory)
+- **`src/`** - Feature modules (RAG, search, file handling)  
+- **`api/`** - REST endpoint definitions
+- **`static/`** - Web interface files
 
-**Function Documentation:**
+### Key Integration Points
+
+**LLM Integration (`core/llm_client.py`)**
+- Uses Ollama for local LLM execution
+- Configurable models (default: gemma3:12b)
+- Handles both streaming and non-streaming responses
+- System prompt hierarchy (universal → mode-specific → contextual)
+
+**RAG System (`src/rag_system.py`)**
+- ChromaDB vector storage with Ollama embeddings (nomic-embed-text)
+- Semantic chunking strategy with 1000 token chunks, 200 token overlap
+- Configurable similarity threshold (0.8 default)
+- Parallel processing and caching enabled
+
+**Web Search (`src/web_search_feature.py`)**
+- Selenium-based search with Chrome WebDriver
+- Advanced keyword extraction using TF-IDF + LLM assistance
+- Search adequacy validation (prevents poor searches)
+
+**Authentication (`core/user_management.py`)**
+- Session-based authentication with Bearer tokens
+- Role-based access (admin/user)
+- Per-user data isolation
+- Default credentials: admin/admin123
+
+### API Architecture Pattern
+
+All API modules follow this pattern:
 ```python
-def function_name(param1: str, param2: int) -> Dict[str, Any]:
-    """
-    Brief description of what the function does
+def create_*_endpoints(app, dependencies):
+    """Create endpoints with dependency injection"""
     
-    Args:
-        param1: Description of parameter
-        param2: Description of parameter
-        
-    Returns:
-        Dictionary containing result data
-        
-    Raises:
-        SpecificException: When specific condition occurs
-    """
+    @app.route('/api/endpoint', methods=['POST'])
+    @require_auth  # Authentication decorator
+    def endpoint_handler():
+        # Validate input
+        # Process request
+        # Return JSON response
 ```
 
-**API Endpoint Standards:**
-```python
-@app.route('/api/feature/action', methods=['POST'])
-@require_auth
-def feature_action() -> Tuple[Dict[str, Any], int]:
-    """
-    Brief description of endpoint functionality
-    
-    Headers:
-        Authorization: Bearer <session_token>
-        
-    Request Body:
-        param1 (str): Description
-        param2 (int, optional): Description
-        
-    Returns:
-        200: Success response description
-        400: Error condition description
-        401: Authentication required
-        500: Server error
-    """
-```
+Main API modules:
+- `api/auth.py` - Authentication endpoints
+- `api/chat.py` - Chat conversation endpoints
+- `api/search.py` - Web search functionality
+- `api/system.py` - System health and configuration
 
-### Error Handling
-- Always use try-catch blocks for external API calls
-- Log errors with appropriate detail level
-- Return meaningful error messages to API consumers
-- Include error context (user, operation, timestamp)
+## Key Development Patterns
 
-### Security Considerations
-- All API endpoints require authentication unless explicitly public
-- Validate all input parameters
-- Use parameterized queries for database operations
-- Never log sensitive information (passwords, tokens)
-- Implement proper session management
+### Adding New Features
 
-## 🤖 LLM Integration
+1. **Create feature module** in `src/` following this pattern:
+   ```python
+   class FeatureName:
+       def __init__(self, config, llm_client=None):
+           self.config = config
+           self.llm_client = llm_client
+   ```
 
-### System Prompt Architecture
-The system uses a hierarchical prompt system:
+2. **Add API endpoints** in `api/` using the endpoint factory pattern:
+   ```python
+   def create_feature_endpoints(app, feature_instance):
+       @app.route('/api/feature/action', methods=['POST'])
+       @require_auth
+       def feature_action():
+           return jsonify(result), 200
+   ```
 
-1. **Universal Prompt**: Applied to all conversation modes
-2. **Mode-Specific Prompt**: Additional instructions for specific modes
-3. **Context Prompt**: Dynamic content based on RAG/search results
+3. **Register endpoints** in `server.py`:
+   ```python
+   from api.feature import create_feature_endpoints
+   create_feature_endpoints(app, feature_instance)
+   ```
 
-**Example Configuration:**
+### Configuration Management
+
+The system uses a hierarchical JSON configuration:
 ```json
 {
-  "system_prompt": {
-    "enabled": true,
-    "universal": "You are an AI assistant for the HE team...",
-    "default": "Provide general assistance...",
-    "rag_mode": "Use the knowledge base context...",
-    "search_mode": "Use web search results...",
-    "file_mode": "Analyze the provided file..."
-  }
+  "ollama": { /* LLM settings */ },
+  "web_search": { /* Search configuration */ },
+  "rag": { /* RAG system settings */ },
+  "system_prompt": { /* Mode-specific prompts */ }
 }
 ```
 
-### Response Processing
-- Extract performance metrics (processing time, tokens/second)
-- Handle both dict and string response formats
-- Add conversation context to memory after generation
-- Track usage statistics for monitoring
+Configuration is loaded once at startup but can be updated at runtime via `/api/config` (admin only).
 
-## 🔍 Web Search Intelligence
+### System Prompts Architecture
 
-### Keyword Extraction System
-The search system uses multiple extraction methods:
+The system uses layered prompts:
+- **Universal**: Applied to all conversations
+- **Mode-specific**: Additional context for search/RAG/file modes
+- **Dynamic context**: RAG results or search results injected as context
 
-1. **TF-IDF**: Statistical analysis of term frequency
-2. **Rule-Based**: Pattern matching for technical terms
-3. **LLM-Assisted**: Using the LLM to identify key concepts
-
-### Adequacy Validation
-Before performing web search, the system validates if extracted keywords are adequate:
-
+Example prompt construction:
 ```python
-def _has_adequate_keywords(self, keywords: List[str], original_text: str) -> bool:
-    # Minimum 2 keywords required
-    # Must contain technical/specific terms
-    # Generic words are filtered out
-    # Total character length threshold
+# Universal prompt from config
+universal_prompt = config['system_prompt']['universal']
+
+# Mode-specific addition
+mode_prompt = config['system_prompt']['rag_mode']  
+
+# Dynamic context injection
+context = f"Context: {rag_results}\n\nUser: {user_message}"
 ```
 
-### Search Process Flow
-```
-User Query → Keyword Extraction → Adequacy Check → Web Search → Result Processing
-```
+### Error Handling Pattern
 
-If keywords are inadequate, the system returns an error rather than performing a poor-quality search.
-
-## 🗄️ RAG System Integration
-
-### ChromaDB Setup
-- Knowledge base stored in `data/chroma_db/`
-- Documents chunked for optimal retrieval
-- Embeddings generated for semantic similarity
-- Metadata preserved for source attribution
-
-### Search and Retrieval
+All components follow this error handling pattern:
 ```python
-# Search process
-results = rag_system.search(query, max_results=5)
-context = "\n\n".join([result['content'] for result in results])
-
-# Enhanced prompt creation
-enhanced_prompt = f"""
-Context from knowledge base:
-{context}
-
-User Question: {query}
-
-Please answer using the provided context.
-"""
+try:
+    result = perform_operation()
+    return {"success": True, "data": result}
+except SpecificException as e:
+    logger.error(f"Operation failed: {e}")
+    return {"success": False, "error": str(e)}
 ```
 
-## 📁 File Handling System
+### Data Storage Patterns
 
-### Upload Process
-1. File uploaded to `/uploads/` directory
-2. Content extracted based on file type
-3. Temporary processing for analysis
-4. Content made available to LLM for questioning
+- **User data**: `conversations/<user_id>/session-*.json`
+- **Authentication**: `auth/users.json`, `auth/user_sessions.json`
+- **Knowledge base**: `data/chroma_db/` (ChromaDB), `data/combined_data.md` (source)
+- **Uploads**: `uploads/` (temporary file storage)
 
-### Supported File Types
-- **Text files**: .txt, .md, .py, .js, etc.
-- **Documents**: .pdf, .docx (future enhancement)
-- **Data files**: .json, .csv, .xlsx
-- **Images**: Basic text extraction capability
+## Testing & Debugging
 
-## 🔐 Authentication & Security
+### Component Testing
+```bash
+# Test web search capabilities
+python -c "
+from src.web_search_feature import WebSearchFeature
+searcher = WebSearchFeature({}, None)
+caps = searcher.get_search_capabilities()
+print('Search available:', caps.get('selenium_available'))
+"
 
-### Session Management
-```python
-# Session creation
-session_token = user_manager.create_session(user_id)
+# Test RAG system
+python -c "
+from src.rag_system import RAGSystem
+rag = RAGSystem('config/config.json')
+stats = rag.get_stats()
+print('Documents:', stats.get('document_count'))
+"
 
-# Token validation
-user_data = user_manager.validate_session(session_token)
-
-# Session cleanup (24-hour expiration)
-user_manager.cleanup_expired_sessions()
-```
-
-### Data Isolation
-- Each user has isolated conversation storage
-- File uploads are user-specific
-- Admin functions require admin role verification
-- API endpoints validate user ownership of resources
-
-## 📊 Performance Monitoring
-
-### Metrics Collection
-The system tracks comprehensive performance data:
-
-```python
-metrics = {
-    'processing_time': llm_processing_time,
-    'tokens_per_second': calculated_tps,
-    'search_processing_time': search_duration,
-    'keyword_extraction_method': extraction_method,
-    'response_length': len(response_content)
-}
-```
-
-### Health Monitoring
-- `/health` endpoint for system status
-- Ollama connectivity testing
-- Resource usage tracking
-- Error rate monitoring
-
-## 🧪 Testing Guidelines
-
-### Unit Testing
-```python
 # Test keyword extraction adequacy
-def test_keyword_adequacy():
-    extractor = KeywordExtractor()
-    
-    # Test adequate keywords
-    result = extractor.extract_keywords("machine learning algorithms optimization")
-    assert result['adequate_keywords'] == True
-    
-    # Test inadequate keywords
-    result = extractor.extract_keywords("help me please")
-    assert result['adequate_keywords'] == False
+python -c "
+from src.keyword_extractor import KeywordExtractor
+extractor = KeywordExtractor({}, None)
+result = extractor.extract_keywords('machine learning algorithms')
+print('Adequate keywords:', result.get('adequate_keywords'))
+"
 ```
 
-### Integration Testing
-```python
-# Test web search functionality
-def test_web_search():
-    search_feature = WebSearchFeature(config, llm_client)
-    
-    result = search_feature.search_web("python programming tutorial", 3)
-    assert result['success'] == True
-    assert len(result['results']) <= 3
-```
-
-### API Testing
-```python
-# Test authentication flow
-def test_auth_flow():
-    # Login
-    response = client.post('/api/auth/login', json={
-        'username': 'test_user',
-        'password': 'test_pass'
-    })
-    assert response.status_code == 200
-    token = response.json['session_token']
-    
-    # Authenticated request
-    response = client.post('/api/chat', 
-        headers={'Authorization': f'Bearer {token}'},
-        json={'message': 'test message'})
-    assert response.status_code == 200
-```
-
-## 🔄 Configuration Management
-
-### Configuration Schema
-```json
-{
-  "ollama": {
-    "host": "string",
-    "model": "string", 
-    "timeout": "number",
-    "num_ctx": "number",
-    "temperature": "number"
-  },
-  "server": {
-    "host": "string",
-    "port": "number",
-    "debug": "boolean"
-  },
-  "web_search": {
-    "enabled": "boolean",
-    "use_keyword_extraction": "boolean",
-    "max_results": "number",
-    "timeout": "number"
-  },
-  "system_prompt": {
-    "enabled": "boolean",
-    "universal": "string",
-    "default": "string",
-    "rag_mode": "string",
-    "search_mode": "string"
-  }
-}
-```
-
-### Runtime Configuration Updates
-- Use `/api/config` POST endpoint for runtime updates
-- Configuration changes don't persist to file (restart reverts)
-- Admin authentication required for config modifications
-
-## 🚀 Deployment Guidelines
-
-### Production Setup
-1. **Change Default Credentials**: Update admin password immediately
-2. **Configure HTTPS**: Use reverse proxy (nginx) for SSL termination
-3. **Set Environment Variables**: Configure production settings
-4. **Enable Logging**: Ensure comprehensive logging for monitoring
-5. **Resource Planning**: Adequate RAM for ChromaDB and LLM operations
-
-### Environment Variables
+### API Health Checks
 ```bash
-export OLLAMA_HOST="http://localhost:11434"
-export LLM_MODEL="llama3.2"
-export SERVER_PORT="8000"
-export ADMIN_PASSWORD="secure_password_here"
-```
-
-### Docker Deployment (Future Enhancement)
-```dockerfile
-FROM python:3.9-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-EXPOSE 8000
-CMD ["python", "server.py"]
-```
-
-## 🐛 Debugging & Troubleshooting
-
-### Common Issues
-
-**Keyword Extraction Failures:**
-```python
-# Debug extraction results
-extractor = KeywordExtractor()
-result = extractor.extract_keywords(query)
-print("Keywords:", result.get('keywords', []))
-print("Adequate:", result.get('adequate_keywords', False))
-print("Method:", result.get('method'))
-```
-
-**Web Search Problems:**
-```python
-# Test search capabilities
-search_feature = WebSearchFeature(config, llm_client)
-capabilities = search_feature.get_search_capabilities()
-print("Selenium available:", capabilities.get('selenium_available'))
-print("Chrome available:", capabilities.get('chrome_available'))
-```
-
-**RAG System Issues:**
-```python
-# Test RAG connectivity
-rag_system = RAGSystem("config/config.json")
-stats = rag_system.get_stats()
-print("Document count:", stats.get('document_count'))
-print("Collection exists:", stats.get('collection_exists'))
-```
-
-### Logging Configuration
-```python
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('server.log'),
-        logging.StreamHandler()
-    ]
-)
-```
-
-## 📝 API Documentation Standards
-
-### Endpoint Documentation Template
-```python
-@app.route('/api/module/action', methods=['POST'])
-@require_auth
-def module_action() -> Tuple[Dict[str, Any], int]:
-    """
-    Brief description of what this endpoint does
-    
-    Headers:
-        Authorization: Bearer <session_token>
-        Content-Type: application/json
-        
-    Request Body:
-        param1 (str): Required parameter description
-        param2 (int, optional): Optional parameter description (default: 5)
-        param3 (bool, optional): Boolean parameter (default: False)
-        
-    Returns:
-        200: Successful operation
-            {
-                "success": true,
-                "data": {...},
-                "message": "Operation completed"
-            }
-        400: Bad Request
-            {
-                "error": "Invalid parameter",
-                "details": "Specific error details"
-            }
-        401: Unauthorized
-            {
-                "error": "Authentication required"
-            }
-        403: Forbidden
-            {
-                "error": "Insufficient permissions"
-            }
-        500: Internal Server Error
-            {
-                "error": "Internal server error",
-                "details": "Error description"
-            }
-            
-    Example:
-        curl -X POST http://localhost:8000/api/module/action \\
-          -H "Authorization: Bearer <token>" \\
-          -H "Content-Type: application/json" \\
-          -d '{"param1": "value", "param2": 10}'
-    """
-```
-
-## 🔮 Future Enhancements
-
-### Planned Features
-1. **Advanced File Processing**: PDF, Word, PowerPoint support
-2. **Multi-Language Support**: Internationalization framework
-3. **Advanced Analytics**: Usage statistics and user behavior tracking
-4. **Plugin System**: Extensible architecture for custom functionality
-5. **Mobile Interface**: Responsive design improvements
-6. **Voice Integration**: Speech-to-text and text-to-speech capabilities
-
-### Technical Debt
-1. **Database Migration**: Move from file-based storage to proper database
-2. **Caching Layer**: Redis integration for improved performance
-3. **Message Queue**: Asynchronous task processing
-4. **Monitoring**: Comprehensive system monitoring with alerts
-5. **Rate Limiting**: API rate limiting for resource protection
-
-## 📚 Development Resources
-
-### Key Dependencies
-- **Flask**: Web framework and API server
-- **ChromaDB**: Vector database for RAG system
-- **Selenium**: Web automation for search functionality
-- **Requests**: HTTP client for API calls
-- **BeautifulSoup**: HTML parsing for search results
-
-### Useful Commands
-```bash
-# Run development server
-python server_new.py
-
-# Test specific functionality
-python -c "from src.keyword_extractor import KeywordExtractor; print('OK')"
-
-# Check system health
+# System health
 curl http://localhost:8000/health
 
-# Test authentication
+# Authentication test
 curl -X POST http://localhost:8000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "admin123"}'
 ```
 
-### Code Quality Tools
-```bash
-# Python linting
-flake8 src/ core/ api/
+### Debug Logging
+The system logs to console and `server.log`. Key debug points:
+- LLM communication errors in `core/llm_client.py`
+- Search adequacy validation in `src/keyword_extractor.py`
+- Authentication failures in `api/auth.py`
+- RAG embedding issues in `src/rag_system.py`
 
-# Type checking
-mypy src/ core/ api/
+## Important Implementation Details
 
-# Security scanning
-bandit -r src/ core/ api/
-```
+### Web Search Adequacy System
+The keyword extraction system prevents poor searches by validating:
+- Minimum 2 keywords required
+- Keywords must be sufficiently technical/specific
+- Generic words ("help", "please") are filtered out
+- Total keyword character length threshold
 
-## 🎯 Best Practices Summary
+### ChromaDB Integration Specifics
+- Uses Ollama embeddings (nomic-embed-text:latest) 
+- Persists to `./data/chroma_db`
+- Semantic chunking with configurable overlap
+- Batch processing for performance
+- Collection name: "documents"
 
-1. **Always authenticate API endpoints** unless explicitly public
-2. **Log important operations** with appropriate detail level
-3. **Validate all inputs** before processing
-4. **Handle errors gracefully** with meaningful messages
-5. **Document all functions** and API endpoints thoroughly
-6. **Test edge cases** and error conditions
-7. **Follow security guidelines** for sensitive data handling
-8. **Use configuration files** instead of hardcoding values
-9. **Implement proper session management** with timeouts
-10. **Monitor system performance** and resource usage
+### Session Management
+- Bearer token authentication
+- 24-hour session expiration
+- Session cleanup runs automatically
+- Tokens stored in `auth/user_sessions.json`
 
----
+### System Initialization
+The `setup_system.py` script:
+1. Processes Excel files (`data/폴드긍정.xlsx`, `data/폴드부정.xlsx`)
+2. Converts to markdown (`data/combined_data.md`)
+3. Initializes ChromaDB with embeddings
+4. Sets up the RAG system for first use
 
-This development guide should be updated as the system evolves and new features are added. Always maintain backwards compatibility when making changes to existing APIs.
+## Dependencies & Requirements
+
+### Core Dependencies
+- **Flask 2.3.3** - Web framework and API server
+- **ChromaDB 0.4.15** - Vector database for RAG
+- **Selenium 4.15.2** - Web automation for search
+- **Pandas 2.0.3** - Excel data processing
+
+### External Requirements
+- **Ollama** running locally (default: localhost:11434)
+- **Chrome/Chromium** browser for web search
+- **Models**: Main LLM (gemma3:12b) + embedding model (nomic-embed-text)
+
+### Port Usage
+- **8000** - Main Flask server (configurable in config.json)
+- **11434** - Ollama API server (standard Ollama port)
+
+This system is designed for local deployment with the HE team and provides a comprehensive AI assistant with knowledge base integration, web search, and multi-user support.

@@ -301,7 +301,7 @@ curl -X POST http://localhost:8000/api/chat/web-search \
       "title": "Latest AI Developments in 2024",
       "url": "https://example.com/ai-news",
       "snippet": "Recent breakthroughs in artificial intelligence...",
-      "source": "bing"
+      "source": "google"
     }
   ],
   "query": "AI developments 2024",

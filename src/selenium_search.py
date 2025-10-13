@@ -32,36 +32,71 @@ class SeleniumSearcher:
         """Initialize Selenium searcher"""
         if not SELENIUM_AVAILABLE:
             raise ImportError("Selenium not available. Install with: pip install selenium webdriver-manager")
-        
+
         self.config = config or {}
         self.driver = None
         self.timeout = self.config.get('timeout', 15)
         self.max_results = self.config.get('max_results', 5)
         self.delay_between_requests = self.config.get('delay', 2)
-        
+        self.browser_type = None  # Track which browser we're using
+
         # Set up logging
         logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
-        
-        # Initialize browser
-        self._setup_browser()
+
+        # Don't initialize browser at startup - do it lazily when first needed
+        # This prevents long-running session issues
+        self.logger.info("SeleniumSearcher initialized (browser will be created on first use)")
     
+    def _is_session_alive(self) -> bool:
+        """Check if the current browser session is still alive"""
+        if self.driver is None:
+            return False
+
+        try:
+            # Try to access the session - this will fail if session is dead
+            _ = self.driver.title
+            return True
+        except Exception as e:
+            self.logger.warning(f"Browser session is dead: {e}")
+            return False
+
+    def _ensure_browser_ready(self):
+        """Ensure browser is ready, recreate if session is invalid"""
+        if self._is_session_alive():
+            return  # Browser is ready
+
+        # Session is dead or doesn't exist, need to create/recreate
+        if self.driver is not None:
+            self.logger.info("Cleaning up dead browser session...")
+            try:
+                self.driver.quit()
+            except:
+                pass
+            self.driver = None
+
+        self.logger.info("Creating new browser session...")
+        self._setup_browser()
+
     def _setup_browser(self):
         """Setup browser with appropriate options"""
         # Try Chrome first, then Firefox
-        browsers = [self._setup_chrome, self._setup_firefox]
-        
-        for browser_setup in browsers:
+        browsers = [
+            ('chrome', self._setup_chrome),
+            ('firefox', self._setup_firefox)
+        ]
+
+        for browser_name, browser_setup in browsers:
             try:
                 self.driver = browser_setup()
                 if self.driver:
-                    browser_name = "Chrome" if "chrome" in str(type(self.driver)).lower() else "Firefox"
-                    self.logger.info(f"Successfully initialized {browser_name} WebDriver")
+                    self.browser_type = browser_name
+                    self.logger.info(f"Successfully initialized {browser_name.capitalize()} WebDriver")
                     return
             except Exception as e:
-                self.logger.warning(f"Failed to setup browser: {e}")
+                self.logger.warning(f"Failed to setup {browser_name}: {e}")
                 continue
-        
+
         raise Exception("Could not initialize any browser. Install Chrome or Firefox.")
     
     def _setup_chrome(self):
@@ -112,13 +147,16 @@ class SeleniumSearcher:
             return webdriver.Firefox(options=firefox_options, firefox_profile=profile)
     
     
-    def _search_bing(self, query: str, max_results: int) -> List[Dict[str, str]]:
+    def _search_google(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search Bing using Selenium"""
         results = []
-        
+
         try:
+            # Ensure browser session is alive before searching
+            self._ensure_browser_ready()
+
             # Navigate to Bing
-            self.driver.get(f"https://www.bing.com/search?q={query}")
+            self.driver.get(f"https://www.google.com/search?q={query}")
             
             # Wait for results
             WebDriverWait(self.driver, self.timeout).until(
@@ -178,7 +216,7 @@ class SeleniumSearcher:
         max_results = max_results or self.max_results
         
         # Use Bing search only
-        results = self._search_bing(query, max_results)
+        results = self._search_google(query, max_results)
         if results:
             self.logger.info(f"Found {len(results)} results from Bing")
             time.sleep(self.delay_between_requests)
@@ -209,8 +247,11 @@ class SeleniumSearcher:
     def test_search_capability(self) -> Dict:
         """Test search functionality and return status"""
         test_query = "python programming"
-        
+
         try:
+            # Ensure browser is ready before testing
+            self._ensure_browser_ready()
+
             results = self.search(test_query, max_results=3)
             
             return {

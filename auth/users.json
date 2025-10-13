@@ -1,6 +1,6 @@
 {
   "admin": {
-    "user_id": "e9ef129a-0945-4cae-9287-19d3ee9b07fe",
+    "user_id": "sudo",
     "username": "admin",
     "email": "admin@heteam.com",
     "password_hash": "administrator",

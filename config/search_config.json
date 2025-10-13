@@ -4,7 +4,7 @@
     "timeout": 15,
     "max_results": 5,
     "delay": 2,
-    "search_engine": "bing",
+    "search_engine": "google",
     "selenium": {
       "headless": true,
       "browser_preference": ["chrome", "firefox"],

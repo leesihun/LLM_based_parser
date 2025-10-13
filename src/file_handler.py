@@ -31,22 +31,69 @@ class FileHandler:
         # Create upload directory if it doesn't exist
         self.upload_dir.mkdir(exist_ok=True)
         
-        # Supported file types
+        # Supported file types (expanded for enhanced processing)
         self.supported_types = {
+            # Text files
             '.txt': 'text',
             '.md': 'text',
-            '.py': 'text',
-            '.js': 'text',
-            '.json': 'text',
-            '.csv': 'text',
-            '.html': 'text',
-            '.xml': 'text',
-            '.yml': 'text',
-            '.yaml': 'text',
-            '.pdf': 'pdf',
+            '.rst': 'text',
+            '.log': 'text',
+            
+            # Code files
+            '.py': 'code',
+            '.js': 'code',
+            '.ts': 'code',
+            '.jsx': 'code',
+            '.tsx': 'code',
+            '.java': 'code',
+            '.cpp': 'code',
+            '.c': 'code',
+            '.h': 'code',
+            '.cs': 'code',
+            '.php': 'code',
+            '.rb': 'code',
+            '.go': 'code',
+            '.rs': 'code',
+            '.swift': 'code',
+            '.kt': 'code',
+            '.scala': 'code',
+            '.sql': 'code',
+            '.html': 'code',
+            '.css': 'code',
+            '.json': 'code',
+            '.xml': 'code',
+            '.yaml': 'code',
+            '.yml': 'code',
+            '.toml': 'code',
+            '.ini': 'code',
+            '.conf': 'code',
+            
+            # Documents
+            '.pdf': 'document',
             '.docx': 'document',
+            '.doc': 'document',
+            '.pptx': 'presentation',
+            '.ppt': 'presentation',
             '.xlsx': 'spreadsheet',
-            '.xls': 'spreadsheet'
+            '.xls': 'spreadsheet',
+            '.csv': 'spreadsheet',
+            
+            # Images
+            '.png': 'image',
+            '.jpg': 'image',
+            '.jpeg': 'image',
+            '.gif': 'image',
+            '.bmp': 'image',
+            '.tiff': 'image',
+            '.tif': 'image',
+            '.webp': 'image',
+            
+            # Archives
+            '.zip': 'archive',
+            '.tar': 'archive',
+            '.gz': 'archive',
+            '.rar': 'archive',
+            '.7z': 'archive'
         }
     
     def validate_file(self, filename: str, file_size: int) -> Dict[str, Any]:
@@ -198,14 +245,18 @@ class FileHandler:
             category = file_info["category"]
             
             # Read based on file category
-            if category == "text":
+            if category in ["text", "code"]:
                 content = self._read_text_file(file_path)
-            elif category == "pdf":
-                content = self._read_pdf_file(file_path)
             elif category == "document":
-                content = self._read_document_file(file_path)
+                content = self._read_pdf_file(file_path) if file_info["file_type"] == ".pdf" else self._read_document_file(file_path)
+            elif category == "presentation":
+                content = self._read_presentation_file(file_path)
             elif category == "spreadsheet":
                 content = self._read_spreadsheet_file(file_path)
+            elif category == "image":
+                content = self._read_image_file(file_path)
+            elif category == "archive":
+                content = self._read_archive_file(file_path)
             else:
                 return {"success": False, "error": "Unsupported file category"}
             
@@ -283,6 +334,114 @@ class FileHandler:
             return "Spreadsheet reading requires pandas and openpyxl libraries."
         except Exception as e:
             return f"Error reading spreadsheet: {str(e)}"
+    
+    def _read_presentation_file(self, file_path: Path) -> str:
+        """Read presentation files (PowerPoint)"""
+        try:
+            from pptx import Presentation
+            prs = Presentation(file_path)
+            
+            text = f"Presentation: {file_path.name}\n\n"
+            
+            for i, slide in enumerate(prs.slides, 1):
+                text += f"=== Slide {i} ===\n"
+                for shape in slide.shapes:
+                    if hasattr(shape, 'text') and shape.text.strip():
+                        text += shape.text + "\n"
+                text += "\n"
+            
+            return text
+        except ImportError:
+            return "Presentation reading requires python-pptx library. Please install it to read PowerPoint files."
+        except Exception as e:
+            return f"Error reading presentation: {str(e)}"
+    
+    def _read_image_file(self, file_path: Path) -> str:
+        """Read image files (basic info + OCR if available)"""
+        try:
+            from PIL import Image
+            
+            with Image.open(file_path) as img:
+                info_text = f"Image: {file_path.name}\n"
+                info_text += f"Format: {img.format}\n"
+                info_text += f"Size: {img.size}\n"
+                info_text += f"Mode: {img.mode}\n\n"
+                
+                # Try OCR if available
+                try:
+                    import pytesseract
+                    extracted_text = pytesseract.image_to_string(img)
+                    if extracted_text.strip():
+                        info_text += "Extracted Text:\n" + extracted_text
+                    else:
+                        info_text += "No text found in image."
+                except ImportError:
+                    info_text += "OCR not available. Install pytesseract for text extraction."
+                except Exception as ocr_e:
+                    info_text += f"OCR failed: {str(ocr_e)}"
+                
+                return info_text
+                
+        except ImportError:
+            return "Image reading requires PIL/Pillow library."
+        except Exception as e:
+            return f"Error reading image: {str(e)}"
+    
+    def _read_archive_file(self, file_path: Path) -> str:
+        """Read archive files (list contents)"""
+        try:
+            if file_path.suffix.lower() == '.zip':
+                import zipfile
+                with zipfile.ZipFile(file_path, 'r') as zip_file:
+                    file_list = zip_file.namelist()
+                    
+                    text = f"ZIP Archive: {file_path.name}\n"
+                    text += f"Files: {len(file_list)}\n\n"
+                    text += "Contents:\n"
+                    
+                    for file_name in file_list[:50]:  # Limit to first 50 files
+                        text += f"  {file_name}\n"
+                    
+                    if len(file_list) > 50:
+                        text += f"  ... and {len(file_list) - 50} more files\n"
+                    
+                    return text
+            else:
+                return f"Archive type {file_path.suffix} not supported for content reading."
+                
+        except Exception as e:
+            return f"Error reading archive: {str(e)}"
+    
+    def get_enhanced_analysis(self, file_id: str, user_id: str, enhanced_processor=None) -> Dict[str, Any]:
+        """
+        Get enhanced analysis of a file using the enhanced processor
+        
+        Args:
+            file_id: File ID
+            user_id: User ID
+            enhanced_processor: Enhanced file processor instance
+            
+        Returns:
+            Enhanced analysis results
+        """
+        try:
+            if not enhanced_processor:
+                return {"success": False, "error": "Enhanced processor not available"}
+            
+            # Get file info
+            file_info = self.get_file_info(file_id, user_id)
+            if not file_info:
+                return {"success": False, "error": "File not found"}
+            
+            file_path = file_info["file_path"]
+            file_type = file_info["file_type"]
+            
+            # Perform enhanced analysis
+            return enhanced_processor.analyze_file(file_path, file_type, user_id)
+            
+        except Exception as e:
+            self.logger.error(f"Enhanced analysis error: {str(e)}")
+            return {"success": False, "error": str(e)}
     
     def get_file_info(self, file_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Get file metadata"""

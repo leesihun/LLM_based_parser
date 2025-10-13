@@ -429,13 +429,13 @@ class KeywordExtractor:
         
         return text
     
-    def optimize_query_for_search_engine(self, query: str, search_engine: str = 'bing') -> str:
+    def optimize_query_for_search_engine(self, query: str, search_engine: str = 'google') -> str:
         """Optimize query for specific search engines"""
         if not query:
             return query
         
         # Engine-specific optimizations
-        if search_engine.lower() == 'bing':
+        if search_engine.lower() == 'google':
             # Bing works well with quoted phrases for exact matches
             words = query.split()
             if len(words) > 1:

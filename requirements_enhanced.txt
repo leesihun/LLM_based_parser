@@ -1,0 +1,43 @@
+# Enhanced LLM Assistant Requirements
+# Core requirements (existing)
+flask==2.3.3
+flask-cors==4.0.0
+chromadb==0.4.15
+pandas==2.0.3
+openpyxl==3.1.2
+PyPDF2==3.0.1
+python-docx==0.8.11
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# Enhanced File Processing
+pdfplumber==0.9.0          # Advanced PDF processing with tables
+python-pptx==0.6.21        # PowerPoint file processing
+Pillow==10.0.0              # Image processing and manipulation
+pytesseract==0.3.10         # OCR capabilities
+
+# Advanced Analytics and ML
+scikit-learn==1.3.0         # Machine learning for document analysis
+numpy==1.24.3               # Numerical computations
+scipy==1.11.1               # Scientific computing
+
+# Knowledge Graph and Network Analysis
+networkx==3.1               # Graph analysis and visualization
+
+# Text Processing and NLP
+nltk==3.8.1                 # Natural language processing toolkit
+spacy==3.6.1                # Advanced NLP (optional, for future enhancements)
+
+# Additional Image Processing (optional)
+opencv-python==4.8.0.74    # Computer vision for advanced image analysis
+matplotlib==3.7.2          # Plotting and visualization
+
+# Performance and Optimization
+joblib==1.3.1               # Parallel processing
+tqdm==4.65.0                # Progress bars for long operations
+
+# Development and Testing (optional)
+pytest==7.4.0              # Testing framework
+pytest-cov==4.1.0          # Coverage testing
+black==23.7.0               # Code formatting
+flake8==6.0.0               # Code linting
