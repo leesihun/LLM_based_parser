@@ -6,6 +6,7 @@ Uses actual Chrome/Firefox browser to perform searches, bypassing proxy HTTPS is
 
 import time
 import logging
+import os
 from typing import List, Dict, Optional
 from datetime import datetime
 import re
@@ -39,14 +40,21 @@ class SeleniumSearcher:
         self.max_results = self.config.get('max_results', 5)
         self.delay_between_requests = self.config.get('delay', 2)
         self.browser_type = None  # Track which browser we're using
+        self.setup_failed = False  # Track if setup has permanently failed
+        self.last_setup_attempt = None  # Track last setup attempt time
 
         # Set up logging
         logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
-        # Don't initialize browser at startup - do it lazily when first needed
-        # This prevents long-running session issues
-        self.logger.info("SeleniumSearcher initialized (browser will be created on first use)")
+        # Initialize browser at startup to fail fast if there's a problem
+        try:
+            self._setup_browser()
+            self.logger.info("SeleniumSearcher initialized successfully")
+        except Exception as e:
+            self.setup_failed = True
+            self.logger.error(f"Failed to initialize browser: {e}")
+            self.logger.error("Web search will not be available. Please install Chrome/ChromeDriver or Firefox/GeckoDriver.")
     
     def _is_session_alive(self) -> bool:
         """Check if the current browser session is still alive"""
@@ -63,8 +71,18 @@ class SeleniumSearcher:
 
     def _ensure_browser_ready(self):
         """Ensure browser is ready, recreate if session is invalid"""
+        # Check if setup has permanently failed
+        if self.setup_failed:
+            raise Exception("Browser setup failed previously. Web search is not available.")
+
         if self._is_session_alive():
             return  # Browser is ready
+
+        # Check if we should throttle setup attempts (prevent rapid retry loops)
+        import time as time_module
+        current_time = time_module.time()
+        if self.last_setup_attempt and (current_time - self.last_setup_attempt) < 10:
+            raise Exception("Browser setup failed recently. Please wait before retrying.")
 
         # Session is dead or doesn't exist, need to create/recreate
         if self.driver is not None:
@@ -75,8 +93,14 @@ class SeleniumSearcher:
                 pass
             self.driver = None
 
-        self.logger.info("Creating new browser session...")
-        self._setup_browser()
+        self.logger.info("Recreating browser session...")
+        self.last_setup_attempt = current_time
+        try:
+            self._setup_browser()
+        except Exception as e:
+            self.setup_failed = True
+            self.logger.error(f"Browser recreation failed: {e}")
+            raise
 
     def _setup_browser(self):
         """Setup browser with appropriate options"""
@@ -99,10 +123,46 @@ class SeleniumSearcher:
 
         raise Exception("Could not initialize any browser. Install Chrome or Firefox.")
     
+    def _get_chrome_version(self):
+        """Detect installed Chrome version"""
+        import subprocess
+        import re
+
+        chrome_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe")
+        ]
+
+        for chrome_path in chrome_paths:
+            if os.path.exists(chrome_path):
+                try:
+                    # Get Chrome version
+                    result = subprocess.run(
+                        [chrome_path, '--version'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    version_output = result.stdout.strip()
+                    # Extract version number (e.g., "Google Chrome 131.0.6778.86" -> "131.0.6778.86")
+                    match = re.search(r'(\d+)\.(\d+)\.(\d+)\.(\d+)', version_output)
+                    if match:
+                        version = match.group(0)
+                        major_version = match.group(1)
+                        self.logger.info(f"Detected Chrome version: {version} (major: {major_version})")
+                        return version, major_version
+                except Exception as e:
+                    self.logger.debug(f"Failed to get Chrome version from {chrome_path}: {e}")
+                    continue
+
+        self.logger.warning("Could not detect Chrome version")
+        return None, None
+
     def _setup_chrome(self):
         """Setup Chrome WebDriver"""
         chrome_options = ChromeOptions()
-        
+
         # Add options for corporate environment
         chrome_options.add_argument('--headless')  # Run in background
         chrome_options.add_argument('--no-sandbox')
@@ -112,39 +172,70 @@ class SeleniumSearcher:
         chrome_options.add_argument('--allow-running-insecure-content')
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors-list')
-        
+
         # User agent to avoid detection
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        
+
         # Browser will use system proxy settings automatically
         # No need to configure proxy manually - it inherits from Windows
-        
+
+        # Try system ChromeDriver first to avoid quota issues with webdriver-manager
         try:
-            # Use webdriver-manager to auto-download ChromeDriver
-            from webdriver_manager.chrome import ChromeDriverManager
-            driver_path = ChromeDriverManager().install()
-            return webdriver.Chrome(executable_path=driver_path, options=chrome_options)
-        except:
-            # Fallback to system ChromeDriver
+            self.logger.info("Attempting to use system ChromeDriver...")
             return webdriver.Chrome(options=chrome_options)
+        except Exception as e:
+            self.logger.warning(f"System ChromeDriver failed: {e}")
+
+        # Detect Chrome version and download matching ChromeDriver
+        try:
+            chrome_version, major_version = self._get_chrome_version()
+
+            if chrome_version and major_version:
+                self.logger.info(f"Downloading ChromeDriver matching Chrome {chrome_version}...")
+                from webdriver_manager.chrome import ChromeDriverManager
+
+                # Download ChromeDriver matching the detected Chrome version
+                driver_path = ChromeDriverManager(driver_version=chrome_version).install()
+                self.logger.info(f"ChromeDriver installed at: {driver_path}")
+                return webdriver.Chrome(executable_path=driver_path, options=chrome_options)
+            else:
+                # If version detection failed, try downloading latest
+                self.logger.warning("Chrome version detection failed, attempting to download latest ChromeDriver...")
+                from webdriver_manager.chrome import ChromeDriverManager
+                driver_path = ChromeDriverManager().install()
+                return webdriver.Chrome(executable_path=driver_path, options=chrome_options)
+
+        except Exception as e:
+            self.logger.error(f"ChromeDriver setup failed: {e}")
+            raise
     
     def _setup_firefox(self):
         """Setup Firefox WebDriver"""
         firefox_options = FirefoxOptions()
         firefox_options.add_argument('--headless')
-        
+
         # Firefox profile for corporate environment
         profile = webdriver.FirefoxProfile()
         profile.set_preference("network.proxy.type", 0)  # Use system proxy
         profile.set_preference("security.tls.insecure_fallback_hosts", "")
         profile.set_preference("security.tls.unrestricted_rc4_fallback", True)
-        
+
+        # Try system GeckoDriver first to avoid quota issues
         try:
+            self.logger.info("Attempting to use system GeckoDriver...")
+            return webdriver.Firefox(options=firefox_options, firefox_profile=profile)
+        except Exception as e:
+            self.logger.warning(f"System GeckoDriver failed: {e}")
+
+        # Fallback to webdriver-manager (may hit quota limits)
+        try:
+            self.logger.info("Attempting to download GeckoDriver via webdriver-manager...")
             from webdriver_manager.firefox import GeckoDriverManager
             driver_path = GeckoDriverManager().install()
             return webdriver.Firefox(executable_path=driver_path, options=firefox_options, firefox_profile=profile)
-        except:
-            return webdriver.Firefox(options=firefox_options, firefox_profile=profile)
+        except Exception as e:
+            self.logger.error(f"GeckoDriver download failed (possibly quota exceeded): {e}")
+            raise
     
     
     def _search_google(self, query: str, max_results: int) -> List[Dict[str, str]]:
@@ -156,11 +247,13 @@ class SeleniumSearcher:
             self._ensure_browser_ready()
 
             # Navigate to Bing
-            self.driver.get(f"https://www.google.com/search?q={query}")
-            
-            # Wait for results
+            search_url = f"https://www.bing.com/search?q={query}"
+            self.logger.info(f"Navigating to: {search_url}")
+            self.driver.get(search_url)
+
+            # Wait for results - Bing uses #b_results container
             WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".b_algo"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#b_results"))
             )
             
             # Find result containers
