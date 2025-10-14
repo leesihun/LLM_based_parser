@@ -4,6 +4,13 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 
 ## 📝 Recent Changes
 
+### Version 1.2.3 (October 14, 2025)
+Added: Proxy/SSL diagnostics and hardened HTML providers in `search_api_test.ipynb`
+- New diagnostics cell prints proxy vars, tests connectivity, and shows cert store path.
+- Unified network wrapper: supports HTTP(S) proxies, custom CA via `CA_BUNDLE_PATH`, retries, and optional insecure SSL (`ALLOW_INSECURE_SSL=1`).
+- HTML providers (SearXNG, DuckDuckGo, Brave) now use the wrapper with endpoint rotation and SSL fallbacks.
+- Added notebook docs for direct SearXNG URLs and examples.
+
 ### Version 1.2.2 (October 14, 2025)
 Added: Self-contained search API test notebook
 - New notebook: `search_api_test.ipynb`
@@ -238,6 +245,19 @@ GET    /api/admin/stats                   # System statistics
 - Conversation resumption examples
 
 ## 💡 Usage Examples
+
+### Company Proxy Setup (Notebook)
+- Set these before launching Jupyter:
+  - `HTTP_PROXY` / `HTTPS_PROXY` or `PROXY_URL`
+  - Optional `CA_BUNDLE_PATH` to your corporate PEM bundle
+  - Optional `ALLOW_INSECURE_SSL=1` (dev/lab only)
+  - Optional `REQUEST_RETRIES=3`, `REQUEST_BACKOFF=1.0`
+- The notebook’s diagnostics cell will verify connectivity and SSL.
+
+### SearXNG Quick Test (Browser)
+- Home: `https://search.bus-hit.me/`
+- JSON: `https://search.bus-hit.me/search?q=python&format=json`
+- HTML: `https://search.bus-hit.me/search?q=python`
 
 ### Search API Test Notebook
 - Open `search_api_test.ipynb` in Jupyter/VS Code and run all cells top-to-bottom.
