@@ -4,6 +4,14 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 
 ## 📝 Recent Changes
 
+### Version 1.2.2 (October 14, 2025)
+Added: Self-contained search API test notebook
+- New notebook: `search_api_test.ipynb`
+- Tests multiple providers with one run: Bing API, SerpAPI (Bing), SearXNG, DuckDuckGo HTML, Brave HTML
+- No repository code dependencies; installs required Python packages at runtime
+- Outputs a summary table with latency, status, and sample results per provider
+- Configure via env vars: `BING_API_KEY`, `SERPAPI_KEY`, `SEARXNG_BASE`
+
 ### Version 1.2.1 (October 14, 2025)
 **Fixed: Selenium Double Search Issue & Config Cleanup**
 - **Fixed duplicate search execution**: Frontend was making 2 API calls for web search
@@ -15,6 +23,12 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 - Configuration: `config/config.json` → `web_search.keyword_extraction.query_expansion: false`
 - **Cleanup**: Removed unused `config/search_config.json` file to avoid confusion
 - Disabled debug Chrome mode (now uses regular Chrome with anti-detection)
+- **Documentation**: Completely rewrote API documentation
+  - Comprehensive endpoint documentation in `API_documentation.md`
+  - Added code examples (JavaScript, Python, cURL)
+  - Documented recent API changes
+  - Added model configuration endpoints
+  - Included error handling guide
 - **Impact**: Web search now performs only ONCE (was searching 2-3 times before)
   - 2-3x faster search performance
   - Reduced browser overhead and resource usage
@@ -148,48 +162,90 @@ The system uses `config/config.json` for all settings:
 
 ## 🔌 API Reference
 
-### Authentication
+For complete, detailed API documentation see **[API_documentation.md](API_documentation.md)**
+
+### Quick Reference
+
+**Authentication**
 ```
-POST   /api/auth/login           # User authentication
-POST   /api/auth/logout          # Session termination
-GET    /api/auth/me              # Current user info
-POST   /api/auth/change-password # Password management
+POST   /api/auth/login                    # User authentication
+POST   /api/auth/logout                   # Session termination
+GET    /api/auth/me                       # Current user info
+POST   /api/auth/change-password          # Password management
 ```
 
-### Chat Modes (Authenticated)
+**Chat Modes** (all support conversation resumption via `session_id`)
 ```
-POST   /api/chat                 # Normal conversation
-POST   /api/chat/rag             # Knowledge base enhanced
-POST   /api/chat/web-search      # Web search integrated
-GET    /api/conversations        # List user sessions
-DELETE /api/conversations/<id>   # Delete session
+POST   /api/chat                          # Normal conversation
+POST   /api/chat/rag                      # Knowledge base enhanced
+POST   /api/chat/web-search               # Web search integrated (includes search_results)
 ```
 
-### Web Search
+**Conversation Management**
 ```
-POST   /api/search/web           # Direct web search
-POST   /api/search/extract-keywords # Keyword extraction
-GET    /api/search/status        # Search capabilities
-POST   /api/search/keyword-extraction/{enable|disable}
-```
-
-### System Management
-```
-GET    /api/models               # Available LLM models
-GET    /api/config               # System configuration
-POST   /api/config               # Update config (runtime)
-GET    /api/rag/stats            # RAG system statistics
-GET    /health                   # System health check
+GET    /api/conversations                 # List user sessions
+POST   /api/conversations                 # Create new session
+GET    /api/conversations/<id>            # Get conversation details
+GET    /api/conversations/<id>/history    # Get message history
+DELETE /api/conversations/<id>            # Delete conversation
+POST   /api/conversations/clear           # Delete all conversations
+GET    /api/conversations/stats           # Get statistics
 ```
 
-### Administration
+**Web Search**
 ```
-GET    /api/admin/users          # User management
-POST   /api/admin/users          # Create user
+POST   /api/search/web                    # Direct web search
+POST   /api/search/extract-keywords       # Keyword extraction
+GET    /api/search/status                 # Search capabilities
+POST   /api/search/keyword-extraction/enable
+POST   /api/search/keyword-extraction/disable
+```
+
+**Model Configuration**
+```
+GET    /api/models/available              # List Ollama models
+GET    /api/models/current                # Current configuration
+POST   /api/models/configure              # Update parameters
+POST   /api/models/test                   # Test model
+GET    /api/models/presets                # Get presets
+POST   /api/models/preset/<name>          # Apply preset
+```
+
+**System Management**
+```
+GET    /health                            # System health check (no auth)
+GET    /api/models                        # Available LLM models
+GET    /api/config                        # System configuration
+POST   /api/config                        # Update config (runtime)
+GET    /api/rag/stats                     # RAG system statistics
+```
+
+**Administration** (admin role required)
+```
+GET    /api/admin/users                   # List all users
+POST   /api/admin/users                   # Create user
 POST   /api/admin/users/<user>/reset-password
+GET    /api/admin/sessions                # Active sessions
+GET    /api/admin/stats                   # System statistics
 ```
+
+**📖 See [API_documentation.md](API_documentation.md) for**:
+- Complete endpoint documentation
+- Request/response examples
+- Error handling
+- Code examples (JavaScript, Python, cURL)
+- Authentication flow
+- Conversation resumption examples
 
 ## 💡 Usage Examples
+
+### Search API Test Notebook
+- Open `search_api_test.ipynb` in Jupyter/VS Code and run all cells top-to-bottom.
+- Optional environment variables:
+  - `BING_API_KEY` for Bing Web Search API
+  - `SERPAPI_KEY` for SerpAPI (engine=bing)
+  - `SEARXNG_BASE` (default: `https://search.bus-hit.me`)
+- The notebook prints a results summary table and sample hits per provider.
 
 ### Web Interface Usage
 
