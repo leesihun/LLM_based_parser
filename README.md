@@ -11,6 +11,7 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 - Now limited to single optimized query per search request
 - Configuration: `config/config.json` → `web_search.keyword_extraction.query_expansion: false`
 - **Cleanup**: Removed unused `config/search_config.json` file to avoid confusion
+- Disabled debug Chrome mode (now uses regular Chrome with anti-detection)
 - **Impact**: Faster search performance, reduced browser overhead, single search execution
 - **Important**: Restart the server for this change to take effect
 
