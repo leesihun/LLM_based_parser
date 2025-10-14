@@ -41,10 +41,19 @@
     },
     "web_search": {
       "enabled": true,
+      "search_method": "selenium",
+      "search_engine": "bing",
+      "fallback_to_html": false,
+      "fallback_to_google": false,
       "use_keyword_extraction": true,
       "max_results": 2,
       "timeout": 100,
+      "delay": 5,
       "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      "selenium": {
+        "headless": false,
+        "browser_preference": ["chrome", "firefox"]
+      },
       "keyword_extraction": {
         "enabled": true,
         "use_llm": true,
