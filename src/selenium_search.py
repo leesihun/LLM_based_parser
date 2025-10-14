@@ -398,6 +398,80 @@ class SeleniumSearcher:
 
         return results
 
+    def _search_bing(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        """Search Bing using Selenium (no CAPTCHA, works reliably)"""
+        results = []
+
+        try:
+            # Ensure browser session is alive before searching
+            self._ensure_browser_ready()
+
+            # Navigate to Bing
+            search_url = f"https://www.bing.com/search?q={query}"
+            self.logger.info(f"Navigating to Bing: {search_url}")
+            self.driver.get(search_url)
+
+            # Save screenshot for debugging
+            self._save_debug_screenshot("bing_search_debug.png")
+
+            # Wait for results - Bing uses #b_results container
+            try:
+                WebDriverWait(self.driver, self.timeout).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#b_results"))
+                )
+            except TimeoutException:
+                # Bing might have issues, log for debugging
+                self.logger.warning("Could not find #b_results element")
+                page_title = self.driver.title
+                self.logger.warning(f"Page title: {page_title}")
+                raise
+
+            # Find result containers - Bing uses li.b_algo for organic results
+            result_elements = self.driver.find_elements(By.CSS_SELECTOR, "li.b_algo")
+
+            for element in result_elements[:max_results]:
+                try:
+                    # Extract title and URL - Bing structure
+                    link_element = element.find_element(By.CSS_SELECTOR, "h2 a")
+                    title = link_element.text.strip()
+                    url = link_element.get_attribute("href")
+
+                    # Extract snippet
+                    snippet = ""
+                    try:
+                        # Bing uses p.b_algoSlug or .b_caption p for snippets
+                        snippet_element = element.find_element(By.CSS_SELECTOR, ".b_caption p")
+                        snippet = snippet_element.text.strip()[:200]
+                    except:
+                        try:
+                            # Alternative selector
+                            snippet_element = element.find_element(By.CSS_SELECTOR, ".b_algoSlug")
+                            snippet = snippet_element.text.strip()[:200]
+                        except:
+                            pass
+
+                    # Skip if no title or URL
+                    if not title or not url or not url.startswith('http'):
+                        continue
+
+                    results.append({
+                        'title': title,
+                        'snippet': snippet + "..." if snippet else "Bing search result",
+                        'url': url,
+                        'source': 'Bing'
+                    })
+
+                except Exception as e:
+                    self.logger.debug(f"Error parsing Bing result: {e}")
+                    continue
+
+        except Exception as e:
+            self.logger.error(f"Bing search failed: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+        return results
+
     def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search DuckDuckGo using Selenium (fallback when Google fails)"""
         results = []
@@ -411,10 +485,20 @@ class SeleniumSearcher:
             self.logger.info(f"Navigating to DuckDuckGo: {search_url}")
             self.driver.get(search_url)
 
+            # Save screenshot for debugging
+            self._save_debug_screenshot("duckduckgo_search_debug.png")
+
             # Wait for results - DuckDuckGo uses different selectors
-            WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='result']"))
-            )
+            try:
+                WebDriverWait(self.driver, self.timeout).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='result']"))
+                )
+            except TimeoutException:
+                # DuckDuckGo might have issues, log for debugging
+                self.logger.warning("Could not find DuckDuckGo result elements")
+                page_title = self.driver.title
+                self.logger.warning(f"Page title: {page_title}")
+                raise
 
             # Find result containers
             result_elements = self.driver.find_elements(By.CSS_SELECTOR, "[data-testid='result']")
@@ -475,19 +559,35 @@ class SeleniumSearcher:
         max_results = max_results or self.max_results
 
         # Try preferred search engine first
-        if self.preferred_engine == 'duckduckgo':
+        if self.preferred_engine == 'bing':
+            results = self._search_bing(query, max_results)
+            if results:
+                self.logger.info(f"Found {len(results)} results from Bing")
+                time.sleep(self.delay_between_requests)
+                return results
+
+            # Fallback to Google if configured
+            if self.fallback_to_google:
+                self.logger.warning("Bing search returned no results, trying Google...")
+                results = self._search_google(query, max_results)
+                if results:
+                    self.logger.info(f"Found {len(results)} results from Google")
+                    time.sleep(self.delay_between_requests)
+                    return results
+
+        elif self.preferred_engine == 'duckduckgo':
             results = self._search_duckduckgo(query, max_results)
             if results:
                 self.logger.info(f"Found {len(results)} results from DuckDuckGo")
                 time.sleep(self.delay_between_requests)
                 return results
 
-            # Fallback to Google if configured
+            # Fallback to Bing or Google if configured
             if self.fallback_to_google:
-                self.logger.warning("DuckDuckGo search returned no results, trying Google...")
-                results = self._search_google(query, max_results)
+                self.logger.warning("DuckDuckGo search returned no results, trying Bing...")
+                results = self._search_bing(query, max_results)
                 if results:
-                    self.logger.info(f"Found {len(results)} results from Google")
+                    self.logger.info(f"Found {len(results)} results from Bing")
                     time.sleep(self.delay_between_requests)
                     return results
         else:
@@ -498,8 +598,15 @@ class SeleniumSearcher:
                 time.sleep(self.delay_between_requests)
                 return results
 
-            # Fallback to DuckDuckGo
-            self.logger.warning("Google search returned no results, trying DuckDuckGo...")
+            # Fallback to Bing first, then DuckDuckGo
+            self.logger.warning("Google search returned no results, trying Bing...")
+            results = self._search_bing(query, max_results)
+            if results:
+                self.logger.info(f"Found {len(results)} results from Bing")
+                time.sleep(self.delay_between_requests)
+                return results
+
+            self.logger.warning("Bing search returned no results, trying DuckDuckGo...")
             results = self._search_duckduckgo(query, max_results)
             if results:
                 self.logger.info(f"Found {len(results)} results from DuckDuckGo")
