@@ -5,12 +5,14 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 ## 📝 Recent Changes
 
 ### Version 1.2.1 (October 14, 2025)
-**Fixed: Selenium Double Search Issue**
+**Fixed: Selenium Double Search Issue & Config Cleanup**
 - Disabled `query_expansion` in web search configuration to prevent duplicate searches
 - Previously, keyword extraction was generating up to 3 optimized queries, causing Selenium to search multiple times
 - Now limited to single optimized query per search request
-- Configuration: `config/search_config.json` - `query_expansion: false`
+- Configuration: `config/config.json` → `web_search.keyword_extraction.query_expansion: false`
+- **Cleanup**: Removed unused `config/search_config.json` file to avoid confusion
 - **Impact**: Faster search performance, reduced browser overhead, single search execution
+- **Important**: Restart the server for this change to take effect
 
 ## ✨ Key Features
 
@@ -310,8 +312,7 @@ LLM_based_parser/
 ├── setup_system.py         # System initialization
 │
 ├── config/
-│   ├── config.json         # System configuration
-│   └── search_config.json  # Web search settings
+│   └── config.json         # System configuration (includes web search settings)
 │
 ├── core/                   # Core system modules
 │   ├── llm_client.py
@@ -355,7 +356,8 @@ The system uses advanced keyword extraction to improve search quality:
 3. **Technical term recognition**: Identifies domain-specific terminology
 4. **Query optimization**: Generates optimized search query from extracted keywords
    - **Note**: Query expansion disabled by default to prevent duplicate searches
-   - Can be enabled in `config/search_config.json` by setting `query_expansion: true`
+   - Can be enabled in `config/config.json` → `web_search.keyword_extraction.query_expansion: true`
+   - Requires server restart after configuration change
 
 ### Search Process Flow
 ```
@@ -365,16 +367,21 @@ User Query → Keyword Extraction → Adequacy Check → Web Search → Result P
 If keywords are deemed inadequate (too generic, too few, or lacking technical terms), the system will return an error instead of performing a search with poor results.
 
 ### Configuration Options
+All web search settings are in `config/config.json` under the `web_search` section:
 ```json
 {
   "web_search": {
     "enabled": true,
+    "search_engine": "bing",
     "use_keyword_extraction": true,
-    "extraction_methods": ["tfidf", "rules", "llm"],
-    "min_keywords": 2,
-    "min_keyword_length": 8,
     "max_results": 5,
-    "timeout": 10
+    "timeout": 100,
+    "keyword_extraction": {
+      "enabled": true,
+      "use_llm": true,
+      "query_expansion": false,
+      "max_keywords": 4
+    }
   }
 }
 ```
@@ -449,7 +456,8 @@ print('Success:', results['success'])
 - Check if Chrome/Chromium is installed
 - Verify internet connectivity
 - Test keyword extraction adequacy
-- Check search configuration in `config/search_config.json`
+- Check search configuration in `config/config.json` → `web_search` section
+- Restart server after any config changes
 
 **Ollama Connection Errors**
 - Ensure Ollama is running: `ollama serve`

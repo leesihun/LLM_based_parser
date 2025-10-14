@@ -60,6 +60,7 @@
       "keyword_extraction": {
         "enabled": true,
         "use_llm": true,
+        "query_expansion": false,
         "max_keywords": 4,
         "min_keyword_length": 1,
         "llm_extraction": {
