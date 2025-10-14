@@ -4,10 +4,11 @@
     "timeout": 15,
     "max_results": 5,
     "delay": 2,
-    "search_engine": "bing",
+    "search_method": "html",
+    "search_engine": "duckduckgo_html",
     "fallback_to_google": false,
     "selenium": {
-      "headless": true,
+      "headless": false,
       "browser_preference": ["chrome", "firefox"],
       "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     },

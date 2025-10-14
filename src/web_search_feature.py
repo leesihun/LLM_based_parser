@@ -12,9 +12,11 @@ from datetime import datetime
 # Import search systems
 try:
     from .selenium_search import SeleniumSearcher
+    from .html_search import HTMLSearcher
     from .keyword_extractor import KeywordExtractor
 except ImportError:
     from selenium_search import SeleniumSearcher
+    from html_search import HTMLSearcher
     from keyword_extractor import KeywordExtractor
 
 
@@ -24,19 +26,27 @@ class WebSearchFeature:
     def __init__(self, config: Optional[Dict] = None, llm_client=None):
         """Initialize web search feature"""
         self.config = config or {}
-        self.searcher = SeleniumSearcher(config)
+
+        # Choose search method: HTML (fast, no CAPTCHA) or Selenium (full browser)
+        search_method = self.config.get('search_method', 'selenium').lower()
+
+        if search_method == 'html':
+            self.searcher = HTMLSearcher(config)
+            self.logger = logging.getLogger(__name__)
+            self.logger.info("Web Search Feature initialized with HTML-based search (no CAPTCHA)")
+        else:
+            self.searcher = SeleniumSearcher(config)
+            self.logger = logging.getLogger(__name__)
+            self.logger.info("Web Search Feature initialized with Selenium-based search")
+
         self.enabled = True
         self.search_history = []
-        
+
         # Initialize keyword extractor
         keyword_config = self.config.get('keyword_extraction', {})
         self.keyword_extractor = KeywordExtractor(keyword_config, llm_client)
         # Check both top-level and nested keyword extraction settings
         self.use_keyword_extraction = self.config.get('use_keyword_extraction', keyword_config.get('enabled', False))
-        
-        # Set up logging
-        self.logger = logging.getLogger(__name__)
-        self.logger.info("Web Search Feature initialized with keyword extraction")
     
     def search_web(self, query: str, max_results: Optional[int] = None, 
                    format_for_llm: bool = True, use_keyword_extraction: Optional[bool] = None) -> Dict[str, Any]:

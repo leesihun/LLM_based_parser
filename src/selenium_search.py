@@ -7,6 +7,7 @@ Uses actual Chrome/Firefox browser to perform searches, bypassing proxy HTTPS is
 import time
 import logging
 import os
+import random
 from typing import List, Dict, Optional
 from datetime import datetime
 import re
@@ -54,7 +55,9 @@ class SeleniumSearcher:
         # Initialize browser at startup to fail fast if there's a problem
         try:
             self._setup_browser()
-            self.logger.info("SeleniumSearcher initialized successfully")
+            # Hide webdriver property to avoid CAPTCHA detection
+            self._hide_webdriver()
+            self.logger.info("SeleniumSearcher initialized successfully with anti-detection measures")
         except Exception as e:
             self.setup_failed = True
             self.logger.error(f"Failed to initialize browser: {e}")
@@ -72,6 +75,43 @@ class SeleniumSearcher:
         except Exception as e:
             self.logger.warning(f"Browser session is dead: {e}")
             return False
+
+    def _human_delay(self, min_seconds=1, max_seconds=3):
+        """Add random delay to mimic human behavior"""
+        delay = random.uniform(min_seconds, max_seconds)
+        time.sleep(delay)
+
+    def _hide_webdriver(self):
+        """Hide webdriver property to avoid CAPTCHA detection"""
+        try:
+            # Execute JavaScript to remove webdriver property
+            self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+
+                    // Override permissions API
+                    Object.defineProperty(navigator, 'permissions', {
+                        get: () => ({
+                            query: () => Promise.resolve({ state: 'granted' })
+                        })
+                    });
+
+                    // Override plugins to appear more real
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5]
+                    });
+
+                    // Override languages
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['en-US', 'en']
+                    });
+                '''
+            })
+            self.logger.debug("Webdriver property hidden successfully")
+        except Exception as e:
+            self.logger.warning(f"Could not hide webdriver property: {e}")
 
     def _ensure_browser_ready(self):
         """Ensure browser is ready, recreate if session is invalid"""
@@ -167,8 +207,13 @@ class SeleniumSearcher:
         """Setup Chrome WebDriver"""
         chrome_options = ChromeOptions()
 
+        # Get headless setting from config (default: true)
+        selenium_config = self.config.get('selenium', {})
+        headless = selenium_config.get('headless', True)
+
         # Add options for corporate environment
-        chrome_options.add_argument('--headless')  # Run in background
+        if headless:
+            chrome_options.add_argument('--headless')  # Run in background
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
@@ -225,6 +270,17 @@ class SeleniumSearcher:
         # Suppress all Chrome logs to avoid GCM and other error messages
         chrome_options.add_argument('--log-level=3')  # Only show fatal errors
         chrome_options.add_argument('--silent')
+
+        # ADVANCED: Anti-detection measures to avoid CAPTCHA
+        # These make Chrome appear more like a real user
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')  # Hide webdriver flag
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+
+        # Additional stealth options
+        chrome_options.add_argument('--start-maximized')  # Real users typically maximize
+        chrome_options.add_argument('--disable-infobars')
+        chrome_options.add_argument('--window-size=1920,1080')  # Common resolution
 
         # Browser will use system proxy settings automatically
         # No need to configure proxy manually - it inherits from Windows
@@ -319,6 +375,9 @@ class SeleniumSearcher:
             search_url = f"https://www.google.com/search?q={query}"
             self.logger.info(f"Navigating to: {search_url}")
             self.driver.get(search_url)
+
+            # Add human-like delay before interacting with page
+            self._human_delay(0.5, 1.5)
 
             # Save screenshot for debugging
             self._save_debug_screenshot("google_search_debug.png")
