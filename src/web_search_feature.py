@@ -30,14 +30,23 @@ class WebSearchFeature:
         # Choose search method: HTML (fast, no CAPTCHA) or Selenium (full browser)
         search_method = self.config.get('search_method', 'selenium').lower()
 
+        # Initialize primary searcher
         if search_method == 'html':
             self.searcher = HTMLSearcher(config)
+            self.fallback_searcher = None
             self.logger = logging.getLogger(__name__)
             self.logger.info("Web Search Feature initialized with HTML-based search (no CAPTCHA)")
         else:
             self.searcher = SeleniumSearcher(config)
-            self.logger = logging.getLogger(__name__)
-            self.logger.info("Web Search Feature initialized with Selenium-based search")
+            # Initialize HTML fallback if configured
+            if self.config.get('fallback_to_html', False):
+                self.fallback_searcher = HTMLSearcher(config)
+                self.logger = logging.getLogger(__name__)
+                self.logger.info("Web Search Feature initialized with Selenium (Bing) + HTML fallback")
+            else:
+                self.fallback_searcher = None
+                self.logger = logging.getLogger(__name__)
+                self.logger.info("Web Search Feature initialized with Selenium-based search")
 
         self.enabled = True
         self.search_history = []
@@ -148,17 +157,35 @@ class WebSearchFeature:
                 try:
                     self.logger.info(f"Searching web with query {i+1}/{len(search_queries)}: {search_query}")
                     results = self.searcher.search(search_query, max_results)
-                    
+
+                    # If Selenium search returned no results and fallback is enabled, try HTML
+                    if not results and self.fallback_searcher:
+                        self.logger.warning("Selenium search returned no results (possibly CAPTCHA), trying HTML fallback...")
+                        results = self.fallback_searcher.search(search_query, max_results)
+                        if results:
+                            self.logger.info(f"HTML fallback successful: {len(results)} results")
+
                     if results:
                         all_results.extend(results)
                         successful_query = search_query
-                        
+
                         # If we got good results from first query, we can stop
                         if len(results) >= (max_results or 5) // 2:
                             break
-                            
+
                 except Exception as e:
                     self.logger.warning(f"Search failed for query '{search_query}': {e}")
+                    # Try HTML fallback on exception
+                    if self.fallback_searcher:
+                        try:
+                            self.logger.info("Trying HTML fallback after exception...")
+                            results = self.fallback_searcher.search(search_query, max_results)
+                            if results:
+                                all_results.extend(results)
+                                successful_query = search_query
+                                self.logger.info(f"HTML fallback successful: {len(results)} results")
+                        except Exception as fallback_e:
+                            self.logger.error(f"HTML fallback also failed: {fallback_e}")
                     continue
             
             # Remove duplicates based on URL

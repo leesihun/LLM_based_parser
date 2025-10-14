@@ -3,9 +3,10 @@
     "enabled": true,
     "timeout": 15,
     "max_results": 5,
-    "delay": 2,
-    "search_method": "html",
-    "search_engine": "duckduckgo_html",
+    "delay": 5,
+    "search_method": "selenium",
+    "search_engine": "bing",
+    "fallback_to_html": false,
     "fallback_to_google": false,
     "selenium": {
       "headless": false,

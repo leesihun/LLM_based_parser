@@ -216,8 +216,9 @@ class KeywordExtractor:
     def _extract_llm_assisted(self, text: str) -> List[Tuple[str, float]]:
         """Use LLM to intelligently extract keywords with custom system prompt"""
         if not self.llm_client:
+            self.logger.debug("LLM client not available")
             return []
-        
+
         try:
             # Get LLM extraction configuration
             llm_config = self.config.get('llm_extraction', {})
@@ -225,58 +226,127 @@ class KeywordExtractor:
             temperature = llm_config.get('temperature', 0.3)
             max_tokens = llm_config.get('max_tokens', 100)
             fallback_to_original = llm_config.get('fallback_to_original', True)
-            
+
+            # If no system prompt, use default keyword extraction prompt
             if not system_prompt:
-                self.logger.warning("No system prompt configured for LLM keyword extraction")
-                return []
-            
+                system_prompt = "Extract 3-5 important keywords from the user's query. Return only the keywords separated by commas, no explanations."
+                self.logger.debug("Using default system prompt for LLM keyword extraction")
+
             # Create conversation context with system prompt and user query
             conversation_context = [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': text}
             ]
-            
-            # Call LLM with conversation context
-            response = self.llm_client.chat_completion(
-                conversation_context,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            
-            # Extract content from response
-            if isinstance(response, dict):
-                keywords_text = response.get('content', '').strip()
-                # Check if response contains an error
-                if keywords_text.lower().startswith('error'):
-                    raise Exception(f"LLM returned error: {keywords_text}")
-            else:
-                keywords_text = str(response).strip()
-                # Check if response contains an error
-                if keywords_text.lower().startswith('error'):
-                    raise Exception(f"LLM returned error: {keywords_text}")
-            
+
+            # Call LLM with conversation context with error handling
+            try:
+                response = self.llm_client.chat_completion(
+                    conversation_context,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+            except AttributeError as e:
+                self.logger.error(f"LLM client missing chat_completion method: {e}")
+                return []
+            except Exception as e:
+                self.logger.error(f"LLM API call failed: {e}")
+                if fallback_to_original:
+                    # Fallback to simple word extraction
+                    return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
+                return []
+
+            # Extract content from response with robust error handling
+            keywords_text = ""
+            try:
+                if response is None:
+                    raise ValueError("LLM returned None response")
+
+                if isinstance(response, dict):
+                    keywords_text = response.get('content', '').strip()
+                    if not keywords_text:
+                        keywords_text = response.get('response', '').strip()
+                    if not keywords_text:
+                        keywords_text = str(response.get('text', '')).strip()
+                elif isinstance(response, str):
+                    keywords_text = response.strip()
+                else:
+                    keywords_text = str(response).strip()
+
+                # Check if response contains an error message
+                if keywords_text and (
+                    keywords_text.lower().startswith('error') or
+                    keywords_text.lower().startswith('failed') or
+                    'exception' in keywords_text.lower()
+                ):
+                    raise Exception(f"LLM returned error message: {keywords_text[:100]}")
+
+            except Exception as e:
+                self.logger.error(f"Failed to extract content from LLM response: {e}")
+                if fallback_to_original:
+                    return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
+                return []
+
             if not keywords_text:
                 self.logger.warning("LLM returned empty response for keyword extraction")
                 if fallback_to_original:
-                    return [(text, 1.0)]
+                    # Fallback to simple word extraction
+                    return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
                 return []
-            
-            # Parse the LLM response
+
+            # Parse the LLM response with robust parsing
             keywords = []
-            for keyword in keywords_text.split(','):
-                keyword = keyword.strip().strip('"\'')
-                if keyword and len(keyword) >= self.min_keyword_length:
-                    # Assign higher scores to earlier keywords (LLM ordered by importance)
-                    score = 1.0 - (len(keywords) * 0.1)
-                    keywords.append((keyword.lower(), max(score, 0.1)))
-            
-            self.logger.info(f"LLM extracted {len(keywords)} keywords: {[k[0] for k in keywords[:3]]}")
-            return keywords
-                
+            try:
+                # Try comma-separated parsing
+                for keyword in keywords_text.split(','):
+                    keyword = keyword.strip().strip('"\'').strip()
+                    # Remove any numbering (1. keyword, 2. keyword, etc.)
+                    keyword = re.sub(r'^\d+\.\s*', '', keyword)
+                    # Remove bullet points and dashes
+                    keyword = re.sub(r'^[-•*]\s*', '', keyword)
+
+                    if keyword and len(keyword) >= self.min_keyword_length:
+                        # Assign higher scores to earlier keywords (LLM ordered by importance)
+                        score = 1.0 - (len(keywords) * 0.1)
+                        keywords.append((keyword.lower(), max(score, 0.1)))
+
+                # If comma parsing didn't work well, try newline or space parsing
+                if len(keywords) < 2:
+                    keywords = []
+                    # Try splitting by newlines or spaces
+                    potential_keywords = re.split(r'[\n\s]+', keywords_text)
+                    for keyword in potential_keywords:
+                        keyword = keyword.strip().strip('"\'.,;:').strip()
+                        keyword = re.sub(r'^\d+\.\s*', '', keyword)
+                        keyword = re.sub(r'^[-•*]\s*', '', keyword)
+
+                        if keyword and len(keyword) >= self.min_keyword_length:
+                            score = 1.0 - (len(keywords) * 0.1)
+                            keywords.append((keyword.lower(), max(score, 0.1)))
+
+                if keywords:
+                    self.logger.info(f"LLM extracted {len(keywords)} keywords: {[k[0] for k in keywords[:3]]}")
+                else:
+                    self.logger.warning("LLM response parsing produced no valid keywords")
+                    if fallback_to_original:
+                        return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
+
+            except Exception as e:
+                self.logger.error(f"Failed to parse LLM keywords: {e}")
+                if fallback_to_original:
+                    return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
+                return []
+
+            return keywords[:self.max_keywords]
+
         except Exception as e:
-            self.logger.warning(f"LLM-assisted extraction failed: {e}")
-        
-        return []
+            self.logger.error(f"LLM-assisted extraction failed with unexpected error: {e}")
+            import traceback
+            self.logger.debug(f"Traceback: {traceback.format_exc()}")
+            # Fallback to simple extraction
+            try:
+                return [(word, 1.0) for word in text.lower().split()[:3] if len(word) > 2]
+            except:
+                return []
     
     def _extract_multiword_terms(self, text: str) -> List[Tuple[str, float]]:
         """Extract multi-word technical terms and phrases"""
