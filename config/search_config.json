@@ -4,7 +4,8 @@
     "timeout": 15,
     "max_results": 5,
     "delay": 2,
-    "search_engine": "google",
+    "search_engine": "duckduckgo",
+    "fallback_to_google": false,
     "selenium": {
       "headless": true,
       "browser_preference": ["chrome", "firefox"],

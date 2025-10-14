@@ -43,6 +43,10 @@ class SeleniumSearcher:
         self.setup_failed = False  # Track if setup has permanently failed
         self.last_setup_attempt = None  # Track last setup attempt time
 
+        # Search engine preferences
+        self.preferred_engine = self.config.get('search_engine', 'google').lower()
+        self.fallback_to_google = self.config.get('fallback_to_google', True)
+
         # Set up logging
         logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
@@ -190,25 +194,51 @@ class SeleniumSearcher:
         chrome_options.add_argument('--metrics-recording-only')
         chrome_options.add_argument('--mute-audio')
 
-        # Disable Google Cloud Messaging (GCM) - this is what's causing the quota error
+        # CRITICAL: Disable Google Cloud Messaging (GCM) and related services
+        # This prevents the "google_apis/gcm/engine" error you're experiencing
+        chrome_options.add_argument('--disable-features=GCMChannelStatusRequest')
+        chrome_options.add_argument('--disable-component-update')
+        chrome_options.add_argument('--disable-client-side-phishing-detection')
+        chrome_options.add_argument('--disable-hang-monitor')
+        chrome_options.add_argument('--disable-popup-blocking')
+        chrome_options.add_argument('--disable-prompt-on-repost')
+        chrome_options.add_argument('--disable-domain-reliability')
+
+        # Disable logging to prevent stderr noise
         chrome_options.add_experimental_option('excludeSwitches', ['enable-automation', 'enable-logging'])
         chrome_options.add_experimental_option('prefs', {
             'profile.default_content_setting_values.notifications': 2,  # Block notifications
             'credentials_enable_service': False,
             'profile.password_manager_enabled': False,
             'profile.default_content_settings.popups': 0,
+            'gcm.channel_status_request_enabled': False,  # Disable GCM channel status
+            'gcm.channel_enabled': False,  # Disable GCM channel
         })
+
+        # Suppress DevTools listening message
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
 
         # User agent to avoid detection
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
 
+        # Suppress all Chrome logs to avoid GCM and other error messages
+        chrome_options.add_argument('--log-level=3')  # Only show fatal errors
+        chrome_options.add_argument('--silent')
+
         # Browser will use system proxy settings automatically
         # No need to configure proxy manually - it inherits from Windows
+
+        # Set service log path to suppress output
+        import os
+        service_log_path = os.devnull  # Redirect logs to null device
 
         # Try system ChromeDriver first to avoid quota issues with webdriver-manager
         try:
             self.logger.info("Attempting to use system ChromeDriver...")
-            return webdriver.Chrome(options=chrome_options)
+            from selenium.webdriver.chrome.service import Service
+            service = Service(log_path=service_log_path)
+            return webdriver.Chrome(service=service, options=chrome_options)
         except Exception as e:
             self.logger.warning(f"System ChromeDriver failed: {e}")
 
@@ -219,17 +249,21 @@ class SeleniumSearcher:
             if chrome_version and major_version:
                 self.logger.info(f"Downloading ChromeDriver matching Chrome {chrome_version}...")
                 from webdriver_manager.chrome import ChromeDriverManager
+                from selenium.webdriver.chrome.service import Service
 
                 # Download ChromeDriver matching the detected Chrome version
                 driver_path = ChromeDriverManager(driver_version=chrome_version).install()
                 self.logger.info(f"ChromeDriver installed at: {driver_path}")
-                return webdriver.Chrome(executable_path=driver_path, options=chrome_options)
+                service = Service(executable_path=driver_path, log_path=service_log_path)
+                return webdriver.Chrome(service=service, options=chrome_options)
             else:
                 # If version detection failed, try downloading latest
                 self.logger.warning("Chrome version detection failed, attempting to download latest ChromeDriver...")
                 from webdriver_manager.chrome import ChromeDriverManager
+                from selenium.webdriver.chrome.service import Service
                 driver_path = ChromeDriverManager().install()
-                return webdriver.Chrome(executable_path=driver_path, options=chrome_options)
+                service = Service(executable_path=driver_path, log_path=service_log_path)
+                return webdriver.Chrome(service=service, options=chrome_options)
 
         except Exception as e:
             self.logger.error(f"ChromeDriver setup failed: {e}")
@@ -264,6 +298,15 @@ class SeleniumSearcher:
             raise
     
     
+    def _save_debug_screenshot(self, filename="debug.png"):
+        """Save screenshot for debugging"""
+        try:
+            screenshot_path = os.path.join(os.getcwd(), filename)
+            self.driver.save_screenshot(screenshot_path)
+            self.logger.info(f"Debug screenshot saved to: {screenshot_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to save debug screenshot: {e}")
+
     def _search_google(self, query: str, max_results: int) -> List[Dict[str, str]]:
         """Search Google using Selenium"""
         results = []
@@ -277,10 +320,30 @@ class SeleniumSearcher:
             self.logger.info(f"Navigating to: {search_url}")
             self.driver.get(search_url)
 
-            # Wait for results - Google uses #search container
-            WebDriverWait(self.driver, self.timeout).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "#search"))
-            )
+            # Save screenshot for debugging
+            self._save_debug_screenshot("google_search_debug.png")
+
+            # Wait for results - Try multiple selectors in case Google layout changed
+            try:
+                WebDriverWait(self.driver, self.timeout).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#search"))
+                )
+            except TimeoutException:
+                # Google might be blocking us or showing CAPTCHA
+                # Try alternative selector or log page source
+                self.logger.warning("Could not find #search element, trying alternative...")
+                page_title = self.driver.title
+                self.logger.warning(f"Page title: {page_title}")
+
+                # Check if we're blocked or got CAPTCHA
+                if "captcha" in page_title.lower() or "unusual traffic" in self.driver.page_source.lower():
+                    self.logger.error("Google detected automated traffic (CAPTCHA). Switching to DuckDuckGo.")
+                    raise Exception("Google CAPTCHA detected")
+
+                # Try waiting for body at least
+                WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.TAG_NAME, "body"))
+                )
 
             # Find result containers - Google uses div.g for each result
             result_elements = self.driver.find_elements(By.CSS_SELECTOR, "div.g")
@@ -334,11 +397,70 @@ class SeleniumSearcher:
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
         return results
-    
-    
+
+    def _search_duckduckgo(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        """Search DuckDuckGo using Selenium (fallback when Google fails)"""
+        results = []
+
+        try:
+            # Ensure browser session is alive before searching
+            self._ensure_browser_ready()
+
+            # Navigate to DuckDuckGo
+            search_url = f"https://duckduckgo.com/?q={query}"
+            self.logger.info(f"Navigating to DuckDuckGo: {search_url}")
+            self.driver.get(search_url)
+
+            # Wait for results - DuckDuckGo uses different selectors
+            WebDriverWait(self.driver, self.timeout).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "[data-testid='result']"))
+            )
+
+            # Find result containers
+            result_elements = self.driver.find_elements(By.CSS_SELECTOR, "[data-testid='result']")
+
+            for element in result_elements[:max_results]:
+                try:
+                    # Extract title and URL - DuckDuckGo structure
+                    link_element = element.find_element(By.CSS_SELECTOR, "article h2 a")
+                    title = link_element.text.strip()
+                    url = link_element.get_attribute("href")
+
+                    # Extract snippet
+                    snippet = ""
+                    try:
+                        snippet_elements = element.find_elements(By.CSS_SELECTOR, "[data-result='snippet']")
+                        if snippet_elements:
+                            snippet = snippet_elements[0].text.strip()[:200]
+                    except:
+                        pass
+
+                    # Skip if no title or URL
+                    if not title or not url or not url.startswith('http'):
+                        continue
+
+                    results.append({
+                        'title': title,
+                        'snippet': snippet + "..." if snippet else "DuckDuckGo search result",
+                        'url': url,
+                        'source': 'DuckDuckGo'
+                    })
+
+                except Exception as e:
+                    self.logger.debug(f"Error parsing DuckDuckGo result: {e}")
+                    continue
+
+        except Exception as e:
+            self.logger.error(f"DuckDuckGo search failed: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+
+        return results
+
+
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, str]]:
         """
-        Perform Google search using browser automation
+        Perform web search using browser automation with configurable search engine
 
         Args:
             query: Search query string
@@ -352,14 +474,39 @@ class SeleniumSearcher:
 
         max_results = max_results or self.max_results
 
-        # Use Google search
-        results = self._search_google(query, max_results)
-        if results:
-            self.logger.info(f"Found {len(results)} results from Google")
-            time.sleep(self.delay_between_requests)
-        else:
-            self.logger.warning("Google search returned no results")
+        # Try preferred search engine first
+        if self.preferred_engine == 'duckduckgo':
+            results = self._search_duckduckgo(query, max_results)
+            if results:
+                self.logger.info(f"Found {len(results)} results from DuckDuckGo")
+                time.sleep(self.delay_between_requests)
+                return results
 
+            # Fallback to Google if configured
+            if self.fallback_to_google:
+                self.logger.warning("DuckDuckGo search returned no results, trying Google...")
+                results = self._search_google(query, max_results)
+                if results:
+                    self.logger.info(f"Found {len(results)} results from Google")
+                    time.sleep(self.delay_between_requests)
+                    return results
+        else:
+            # Default: Try Google first
+            results = self._search_google(query, max_results)
+            if results:
+                self.logger.info(f"Found {len(results)} results from Google")
+                time.sleep(self.delay_between_requests)
+                return results
+
+            # Fallback to DuckDuckGo
+            self.logger.warning("Google search returned no results, trying DuckDuckGo...")
+            results = self._search_duckduckgo(query, max_results)
+            if results:
+                self.logger.info(f"Found {len(results)} results from DuckDuckGo")
+                time.sleep(self.delay_between_requests)
+                return results
+
+        self.logger.warning("All search engines returned no results")
         return results
     
     def search_with_context(self, query: str, max_results: Optional[int] = None) -> str:
@@ -369,8 +516,10 @@ class SeleniumSearcher:
         if not results:
             return f"No browser search results found for: {query}"
 
-        context = f"Google Search Results for '{query}':\n\n"
-        
+        # Determine which search engine was used
+        search_engine = results[0].get('source', 'Web') if results else 'Web'
+        context = f"{search_engine} Search Results for '{query}':\n\n"
+
         for i, result in enumerate(results, 1):
             context += f"{i}. **{result['title']}**\n"
             if result['snippet']:
@@ -378,7 +527,7 @@ class SeleniumSearcher:
             if result['url']:
                 context += f"   URL: {result['url']}\n"
             context += "\n"
-        
+
         return context
     
     def test_search_capability(self) -> Dict:
@@ -390,16 +539,22 @@ class SeleniumSearcher:
             self._ensure_browser_ready()
 
             results = self.search(test_query, max_results=3)
-            
+
+            # Determine which engines worked
+            engines_working = []
+            if results:
+                engine = results[0].get('source', 'Unknown')
+                engines_working = [engine]
+
             return {
                 'success': len(results) > 0,
                 'result_count': len(results),
                 'test_query': test_query,
-                'engines_working': ['Google'],
+                'engines_working': engines_working,
                 'sample_result': results[0] if results else None,
                 'timestamp': datetime.now().isoformat()
             }
-            
+
         except Exception as e:
             return {
                 'success': False,
