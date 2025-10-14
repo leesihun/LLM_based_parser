@@ -641,7 +641,7 @@ class SeleniumSearcher:
                 time.sleep(self.delay_between_requests)
                 return results
 
-            # Fallback to Bing or Google if configured
+            # Fallback to Bing if configured
             if self.fallback_to_google:
                 self.logger.warning("DuckDuckGo search returned no results, trying Bing...")
                 results = self._search_bing(query, max_results)
@@ -650,30 +650,12 @@ class SeleniumSearcher:
                     time.sleep(self.delay_between_requests)
                     return results
         else:
-            # Default: Try Google first
-            results = self._search_google(query, max_results)
-            if results:
-                self.logger.info(f"Found {len(results)} results from Google")
-                time.sleep(self.delay_between_requests)
-                return results
+            # Unsupported engine - log warning and return empty
+            self.logger.error(f"Unsupported search engine: {self.preferred_engine}. Use 'bing' or 'duckduckgo'.")
+            return []
 
-            # Fallback to Bing first, then DuckDuckGo
-            self.logger.warning("Google search returned no results, trying Bing...")
-            results = self._search_bing(query, max_results)
-            if results:
-                self.logger.info(f"Found {len(results)} results from Bing")
-                time.sleep(self.delay_between_requests)
-                return results
-
-            self.logger.warning("Bing search returned no results, trying DuckDuckGo...")
-            results = self._search_duckduckgo(query, max_results)
-            if results:
-                self.logger.info(f"Found {len(results)} results from DuckDuckGo")
-                time.sleep(self.delay_between_requests)
-                return results
-
-        self.logger.warning("All search engines returned no results")
-        return results
+        self.logger.warning("Search engine returned no results")
+        return []
     
     def search_with_context(self, query: str, max_results: Optional[int] = None) -> str:
         """Search and format results for LLM context"""
