@@ -353,6 +353,7 @@ Please answer the user's question using the search results above when relevant. 
                 'search_processing_time': search_processing_time,
                 'search_context_used': True,
                 'search_results_count': search_result.get('result_count', 0),
+                'search_results': search_result.get('results', []),  # Include actual search results
                 'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
                 'optimized_queries': search_result.get('queries_tried', [user_message]),
                 'successful_query': search_result.get('successful_query'),

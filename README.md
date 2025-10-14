@@ -6,14 +6,20 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 
 ### Version 1.2.1 (October 14, 2025)
 **Fixed: Selenium Double Search Issue & Config Cleanup**
-- Disabled `query_expansion` in web search configuration to prevent duplicate searches
+- **Fixed duplicate search execution**: Frontend was making 2 API calls for web search
+  - `/api/chat/web-search` (for LLM response) + `/api/search/web` (for UI display)
+  - Now includes search results in chat response, eliminating duplicate call
+- Disabled `query_expansion` in web search configuration to prevent multiple query variations
 - Previously, keyword extraction was generating up to 3 optimized queries, causing Selenium to search multiple times
 - Now limited to single optimized query per search request
 - Configuration: `config/config.json` → `web_search.keyword_extraction.query_expansion: false`
 - **Cleanup**: Removed unused `config/search_config.json` file to avoid confusion
 - Disabled debug Chrome mode (now uses regular Chrome with anti-detection)
-- **Impact**: Faster search performance, reduced browser overhead, single search execution
-- **Important**: Restart the server for this change to take effect
+- **Impact**: Web search now performs only ONCE (was searching 2-3 times before)
+  - 2-3x faster search performance
+  - Reduced browser overhead and resource usage
+  - No duplicate keyword extraction
+- **Important**: Restart the server and refresh browser for changes to take effect
 
 ## ✨ Key Features
 

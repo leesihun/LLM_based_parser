@@ -1280,7 +1280,8 @@
             
             // Get and display search context if available
             if (result.keyword_extraction_used && result.optimized_queries) {
-                await displaySearchContextForMessage(message, result.optimized_queries, result.successful_query);
+                // Use search results from the response instead of making another API call
+                displaySearchContext(message, result.optimized_queries, result.successful_query, result.search_results || []);
             }
 
             return result;
@@ -1810,31 +1811,9 @@
             searchContextSection.style.display = 'none';
         }
 
-        async function displaySearchContextForMessage(originalMessage, optimizedQueries, successfulQuery) {
-            try {
-                // Get actual search results to display
-                const searchResponse = await fetch('/api/search/web', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${userToken}`
-                    },
-                    body: JSON.stringify({
-                        query: successfulQuery || optimizedQueries[0],
-                        max_results: 5
-                    })
-                });
-
-                if (searchResponse.ok) {
-                    const searchData = await searchResponse.json();
-                    displaySearchContext(originalMessage, optimizedQueries, successfulQuery, searchData.results);
-                }
-            } catch (error) {
-                console.error('Error fetching search results for context:', error);
-                // Still show keywords even if we can't get results
-                displaySearchContext(originalMessage, optimizedQueries, successfulQuery, []);
-            }
-        }
+        // REMOVED: This function was causing duplicate searches
+        // Search results are now included in the chat response
+        // No need to make a second API call to /api/search/web
 
         function displaySearchContext(originalMessage, optimizedQueries, successfulQuery, searchResults) {
             const searchKeywordsDiv = document.getElementById('searchKeywords');
