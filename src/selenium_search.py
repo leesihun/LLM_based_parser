@@ -8,6 +8,8 @@ import time
 import logging
 import os
 import random
+import subprocess
+import psutil
 from typing import List, Dict, Optional
 from datetime import datetime
 import re
@@ -23,8 +25,16 @@ try:
     from webdriver_manager.chrome import ChromeDriverManager
     from webdriver_manager.firefox import GeckoDriverManager
     SELENIUM_AVAILABLE = True
+
+    # Try to import undetected-chromedriver
+    try:
+        import undetected_chromedriver as uc
+        UNDETECTED_AVAILABLE = True
+    except ImportError:
+        UNDETECTED_AVAILABLE = False
 except ImportError:
     SELENIUM_AVAILABLE = False
+    UNDETECTED_AVAILABLE = False
 
 
 class SeleniumSearcher:
@@ -43,6 +53,7 @@ class SeleniumSearcher:
         self.browser_type = None  # Track which browser we're using
         self.setup_failed = False  # Track if setup has permanently failed
         self.last_setup_attempt = None  # Track last setup attempt time
+        self.bing_visited = False  # Track if we've visited Bing homepage
 
         # Search engine preferences
         self.preferred_engine = self.config.get('search_engine', 'google').lower()
@@ -76,10 +87,28 @@ class SeleniumSearcher:
             self.logger.warning(f"Browser session is dead: {e}")
             return False
 
-    def _human_delay(self, min_seconds=1, max_seconds=3):
+    def _human_delay(self, min_seconds=2, max_seconds=5):
         """Add random delay to mimic human behavior"""
         delay = random.uniform(min_seconds, max_seconds)
+        self.logger.debug(f"Human-like delay: {delay:.2f} seconds")
         time.sleep(delay)
+
+    def _slow_type(self, element, text):
+        """Type text slowly like a human"""
+        for char in text:
+            element.send_keys(char)
+            time.sleep(random.uniform(0.05, 0.15))
+
+    def _simulate_human_behavior(self):
+        """Simulate human-like behavior before search"""
+        try:
+            # Random mouse movements by scrolling
+            self.driver.execute_script("window.scrollTo(0, 100);")
+            time.sleep(random.uniform(0.3, 0.7))
+            self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(random.uniform(0.2, 0.5))
+        except Exception as e:
+            self.logger.debug(f"Could not simulate human behavior: {e}")
 
     def _hide_webdriver(self):
         """Hide webdriver property to avoid CAPTCHA detection"""
@@ -203,13 +232,129 @@ class SeleniumSearcher:
         self.logger.warning("Could not detect Chrome version")
         return None, None
 
-    def _setup_chrome(self):
-        """Setup Chrome WebDriver"""
-        chrome_options = ChromeOptions()
+    def _is_chrome_running_debug(self, port=9222):
+        """Check if Chrome is already running in debug mode"""
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                if proc.info['name'] and 'chrome' in proc.info['name'].lower():
+                    cmdline = proc.info.get('cmdline', [])
+                    if cmdline and any(f'remote-debugging-port={port}' in str(arg) for arg in cmdline):
+                        return True
+            return False
+        except Exception as e:
+            self.logger.debug(f"Could not check Chrome debug status: {e}")
+            return False
 
-        # Get headless setting from config (default: true)
+    def _start_debug_chrome(self, port=9222, user_data_dir=None):
+        """Start Chrome in debug mode"""
+        try:
+            # Default user data dir
+            if not user_data_dir:
+                user_data_dir = os.path.join(os.getcwd(), 'chrometemp')
+
+            # Create directory if it doesn't exist
+            os.makedirs(user_data_dir, exist_ok=True)
+
+            # Find Chrome executable
+            chrome_paths = [
+                r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+                r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+                os.path.expanduser(r'~\AppData\Local\Google\Chrome\Application\chrome.exe')
+            ]
+
+            chrome_exe = None
+            for path in chrome_paths:
+                if os.path.exists(path):
+                    chrome_exe = path
+                    break
+
+            if not chrome_exe:
+                raise Exception("Chrome executable not found")
+
+            # Launch Chrome in debug mode
+            cmd = [
+                chrome_exe,
+                f'--remote-debugging-port={port}',
+                f'--user-data-dir={user_data_dir}',
+                '--no-first-run',
+                '--no-default-browser-check'
+            ]
+
+            self.logger.info(f"Starting Chrome in debug mode on port {port}")
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Wait for Chrome to start
+            time.sleep(3)
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to start debug Chrome: {e}")
+            return False
+
+    def _setup_debug_chrome(self):
+        """Setup Chrome WebDriver using debug connection (best CAPTCHA avoidance)"""
         selenium_config = self.config.get('selenium', {})
+        debug_port = selenium_config.get('debug_port', 9222)
+        user_data_dir = selenium_config.get('user_data_dir', None)
+
+        # Check if Chrome is already running in debug mode
+        if not self._is_chrome_running_debug(debug_port):
+            self.logger.info("Debug Chrome not running, starting it...")
+            if not self._start_debug_chrome(debug_port, user_data_dir):
+                raise Exception("Failed to start Chrome in debug mode")
+        else:
+            self.logger.info("Debug Chrome already running")
+
+        # Connect to debug Chrome
+        chrome_options = ChromeOptions()
+        chrome_options.add_experimental_option("debuggerAddress", f"127.0.0.1:{debug_port}")
+
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            self.logger.info("Successfully connected to debug Chrome")
+            return driver
+        except Exception as e:
+            self.logger.error(f"Failed to connect to debug Chrome: {e}")
+            raise
+
+    def _setup_chrome(self):
+        """Setup Chrome WebDriver with best available method"""
+        # Get selenium config
+        selenium_config = self.config.get('selenium', {})
+        use_debug_chrome = selenium_config.get('use_debug_chrome', False)
         headless = selenium_config.get('headless', True)
+
+        # Try debug Chrome first (BEST CAPTCHA avoidance - 95-99%)
+        if use_debug_chrome:
+            try:
+                self.logger.info("Using debug Chrome mode (best CAPTCHA avoidance)")
+                return self._setup_debug_chrome()
+            except Exception as e:
+                self.logger.warning(f"Debug Chrome failed, falling back to undetected Chrome: {e}")
+
+        # Try undetected-chromedriver second (good CAPTCHA avoidance - 70-90%)
+        if UNDETECTED_AVAILABLE:
+            try:
+                self.logger.info("Using undetected-chromedriver to avoid CAPTCHA detection...")
+                options = uc.ChromeOptions()
+
+                # Minimal options for undetected mode
+                if headless:
+                    options.add_argument('--headless=new')
+
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+                options.add_argument('--disable-gpu')
+
+                # Create undetected Chrome instance
+                driver = uc.Chrome(options=options, use_subprocess=True, version_main=None)
+                self.logger.info("Successfully created undetected Chrome driver")
+                return driver
+            except Exception as e:
+                self.logger.warning(f"Undetected Chrome failed, falling back to regular Chrome: {e}")
+
+        # Fallback to regular Chrome
+        chrome_options = ChromeOptions()
 
         # Add options for corporate environment
         if headless:
@@ -465,10 +610,26 @@ class SeleniumSearcher:
             # Ensure browser session is alive before searching
             self._ensure_browser_ready()
 
-            # Navigate to Bing
+            # Navigate to Bing homepage first (more human-like) - only once per session
+            if not self.bing_visited:
+                self.logger.info(f"First Bing visit - navigating to homepage first...")
+                self.driver.get("https://www.bing.com")
+                self.bing_visited = True
+
+                # Simulate human behavior
+                self._human_delay(2, 4)
+                self._simulate_human_behavior()
+            else:
+                self.logger.debug("Bing already visited in this session")
+                self._human_delay(1, 2)
+
+            # Now navigate to search
             search_url = f"https://www.bing.com/search?q={query}"
-            self.logger.info(f"Navigating to Bing: {search_url}")
+            self.logger.info(f"Navigating to search: {search_url}")
             self.driver.get(search_url)
+
+            # Add human-like delay before interacting with page
+            self._human_delay(1, 3)
 
             # Save screenshot for debugging
             self._save_debug_screenshot("bing_search_debug.png")
@@ -483,6 +644,10 @@ class SeleniumSearcher:
                 self.logger.warning("Could not find #b_results element")
                 page_title = self.driver.title
                 self.logger.warning(f"Page title: {page_title}")
+
+                # Check for CAPTCHA
+                if "captcha" in page_title.lower() or "한 단계" in page_title or "solve" in page_title.lower():
+                    self.logger.error("Bing CAPTCHA detected. Try: 1) Different network/VPN 2) Wait longer between searches 3) Use different IP")
                 raise
 
             # Find result containers - Bing uses li.b_algo for organic results

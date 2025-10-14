@@ -46,11 +46,14 @@
       "fallback_to_html": false,
       "fallback_to_google": false,
       "use_keyword_extraction": true,
-      "max_results": 2,
+      "max_results": 5,
       "timeout": 100,
-      "delay": 5,
+      "delay": 10,
       "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       "selenium": {
+        "use_debug_chrome": true,
+        "debug_port": 9222,
+        "user_data_dir": "./chrometemp",
         "headless": false,
         "browser_preference": ["chrome", "firefox"]
       },
