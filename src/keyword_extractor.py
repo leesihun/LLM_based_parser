@@ -401,42 +401,20 @@ class KeywordExtractor:
     def _has_adequate_keywords(self, keywords: List[str], original_text: str) -> bool:
         """
         Determine if extracted keywords are adequate for web search
-        
+
         Args:
             keywords: List of extracted keywords
             original_text: Original input text
-            
+
         Returns:
-            True if keywords are adequate for search, False otherwise
+            Always True to allow all keyword extractions to proceed
         """
+        # Always return True - allow all extracted keywords to be used
+        # If no keywords were extracted, that's handled elsewhere
         if not keywords:
             return False
-        
-        # Must have at least 2 meaningful keywords
-        if len(keywords) < 2:
-            return False
-        
-        # Check if keywords are too generic
-        generic_words = {'help', 'please', 'can', 'how', 'what', 'where', 'when', 'why', 'who', 
-                        'question', 'answer', 'explain', 'show', 'tell', 'find', 'search'}
-        meaningful_keywords = [kw for kw in keywords if kw.lower() not in generic_words and len(kw) > 2]
-        
-        # Must have at least 2 meaningful, non-generic keywords
-        if len(meaningful_keywords) < 2:
-            return False
-        
-        # Check if we have at least one technical term or substantial keyword
-        has_technical_term = any(kw.lower() in self.technical_keywords or len(kw) > 5 for kw in meaningful_keywords)
-        
-        # Must have either technical terms or substantial keywords
-        if not has_technical_term:
-            return False
-        
-        # Check minimum combined keyword length (avoid single-letter combinations)
-        total_length = sum(len(kw) for kw in meaningful_keywords)
-        if total_length < 8:
-            return False
-        
+
+        # Always return True if we have any keywords
         return True
     
     def _generate_search_queries(self, keywords: List[str], original_text: str) -> List[str]:
