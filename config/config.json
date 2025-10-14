@@ -54,7 +54,7 @@
         "use_debug_chrome": false,
         "debug_port": 9222,
         "user_data_dir": "./chrometemp",
-        "headless": false,
+        "headless": true,
         "browser_preference": ["chrome", "firefox"]
       },
       "keyword_extraction": {
