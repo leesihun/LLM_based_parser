@@ -2,6 +2,16 @@
 
 A comprehensive AI-powered assistant with multiple conversation modes, knowledge base integration, file processing, and intelligent web search capabilities.
 
+## 📝 Recent Changes
+
+### Version 1.2.1 (October 14, 2025)
+**Fixed: Selenium Double Search Issue**
+- Disabled `query_expansion` in web search configuration to prevent duplicate searches
+- Previously, keyword extraction was generating up to 3 optimized queries, causing Selenium to search multiple times
+- Now limited to single optimized query per search request
+- Configuration: `config/search_config.json` - `query_expansion: false`
+- **Impact**: Faster search performance, reduced browser overhead, single search execution
+
 ## ✨ Key Features
 
 ### 🔐 Authentication & Security
@@ -343,7 +353,9 @@ The system uses advanced keyword extraction to improve search quality:
 1. **Multiple extraction methods**: TF-IDF, rule-based patterns, LLM-assisted
 2. **Adequacy validation**: Prevents search with generic or insufficient keywords
 3. **Technical term recognition**: Identifies domain-specific terminology
-4. **Query optimization**: Generates multiple search queries from extracted keywords
+4. **Query optimization**: Generates optimized search query from extracted keywords
+   - **Note**: Query expansion disabled by default to prevent duplicate searches
+   - Can be enabled in `config/search_config.json` by setting `query_expansion: true`
 
 ### Search Process Flow
 ```

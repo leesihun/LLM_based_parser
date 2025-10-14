@@ -22,7 +22,7 @@
       ],
       "max_keywords": 8,
       "min_keyword_length": 2,
-      "query_expansion": true,
+      "query_expansion": false,
       "require_adequate_keywords": true,
       "technical_terms_boost": 2.0,
       "multiword_terms_boost": 1.5
