@@ -41,7 +41,8 @@
     },
     "web_search": {
       "enabled": true,
-      "search_method": "selenium",
+      "search_method": "searxng",
+      "searxng_url": "http://192.168.219.113:8080",
       "search_engine": "bing",
       "fallback_to_html": false,
       "fallback_to_google": false,

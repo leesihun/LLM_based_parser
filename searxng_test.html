@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SearXNG API Test - Internet Explorer Compatible</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .search-box {
+            margin: 20px 0;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        #status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        #status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .result-item {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #4CAF50;
+            border-radius: 4px;
+        }
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1a0dab;
+            margin-bottom: 5px;
+        }
+        .result-url {
+            color: #006621;
+            font-size: 14px;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+        .result-snippet {
+            color: #545454;
+            line-height: 1.5;
+        }
+        .endpoint-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        .endpoint-info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .api-examples {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+            border-left: 4px solid #ff9800;
+        }
+        .api-examples h3 {
+            margin-top: 0;
+            color: #e65100;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SearXNG API Test (IE Compatible)</h1>
+
+        <div class="endpoint-info">
+            <strong>Current Endpoint:</strong> <code id="current-endpoint">http://localhost:8080</code><br>
+            <small>Change this in the script section if needed</small>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="searchQuery" placeholder="Enter search query..." value="Python programming">
+            <button onclick="performSearch()">Search</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="results"></div>
+
+        <div class="api-examples">
+            <h3>API Usage Examples</h3>
+            <p><strong>⚠ IMPORTANT: SearXNG requires POST requests for API calls</strong></p>
+
+            <p><strong>POST Request (JavaScript/AJAX):</strong></p>
+            <pre>// Using XMLHttpRequest (IE compatible)
+var xhr = new XMLHttpRequest();
+xhr.open('POST', 'http://localhost:8080/search', true);
+xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+xhr.send('q=python&format=json');</pre>
+
+            <p><strong>POST Request (curl command line):</strong></p>
+            <pre>curl -X POST -d "q=python" -d "format=json" http://localhost:8080/search</pre>
+
+            <p><strong>Available parameters:</strong></p>
+            <ul>
+                <li><code>q</code> - Search query (required)</li>
+                <li><code>format</code> - Response format: html (default), json, csv, rss</li>
+                <li><code>engines</code> - Search engines: google, bing, duckduckgo</li>
+                <li><code>language</code> - Language code: en, ko, all</li>
+            </ul>
+
+            <p><strong>For HTML results (browser address bar):</strong></p>
+            <pre>http://localhost:8080/search?q=python</pre>
+        </div>
+    </div>
+
+    <script>
+        // SearXNG endpoint configuration
+        var SEARXNG_BASE = 'http://localhost:8080';
+
+        // Update displayed endpoint
+        document.getElementById('current-endpoint').textContent = SEARXNG_BASE;
+
+        function showStatus(message, isError) {
+            var statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = isError ? 'error' : 'success';
+        }
+
+        function displayResults(data) {
+            var resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (!data.results || data.results.length === 0) {
+                resultsDiv.innerHTML = '<p>No results found.</p>';
+                return;
+            }
+
+            var html = '<h2>Search Results (' + data.results.length + ' found)</h2>';
+
+            for (var i = 0; i < Math.min(data.results.length, 10); i++) {
+                var result = data.results[i];
+                html += '<div class="result-item">';
+                html += '<div class="result-title">' + escapeHtml(result.title || 'Untitled') + '</div>';
+                html += '<div class="result-url">' + escapeHtml(result.url || '') + '</div>';
+                html += '<div class="result-snippet">' + escapeHtml(result.content || 'No description available') + '</div>';
+                html += '</div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+
+        function performSearch() {
+            var query = document.getElementById('searchQuery').value;
+
+            if (!query || query.trim() === '') {
+                showStatus('Please enter a search query', true);
+                return;
+            }
+
+            showStatus('Searching for: ' + query + '...', false);
+            document.getElementById('results').innerHTML = '';
+
+            // Build URL and form data for POST request (SearXNG requires POST)
+            var url = SEARXNG_BASE + '/search';
+            var formData = 'q=' + encodeURIComponent(query) + '&format=json';
+
+            // IE-compatible AJAX request
+            var xhr;
+            if (window.XMLHttpRequest) {
+                xhr = new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                // For older IE versions
+                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            showStatus('Search completed successfully! Found ' + (data.results ? data.results.length : 0) + ' results.', false);
+                            displayResults(data);
+                        } catch (e) {
+                            showStatus('Error parsing response: ' + e.message, true);
+                        }
+                    } else {
+                        showStatus('Search failed. Status: ' + xhr.status + '. Make sure SearXNG is running and accessible.', true);
+
+                        // Show troubleshooting info
+                        var troubleshoot = '<div style="margin-top:20px; padding:15px; background:#fff3cd; border-left:4px solid #ffc107;">';
+                        troubleshoot += '<h3 style="margin-top:0;">Troubleshooting:</h3>';
+                        troubleshoot += '<ol>';
+                        troubleshoot += '<li>Make sure SearXNG Docker containers are running in WSL</li>';
+                        troubleshoot += '<li>Run <code>setup_portproxy.ps1</code> as Administrator</li>';
+                        troubleshoot += '<li>Check Windows Firewall settings</li>';
+                        troubleshoot += '<li>Try accessing: <a href="' + SEARXNG_BASE + '" target="_blank">' + SEARXNG_BASE + '</a></li>';
+                        troubleshoot += '</ol></div>';
+                        document.getElementById('results').innerHTML = troubleshoot;
+                    }
+                }
+            };
+
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.send(formData);
+        }
+
+        // Allow Enter key to trigger search
+        document.getElementById('searchQuery').onkeypress = function(e) {
+            e = e || window.event;
+            var keyCode = e.keyCode || e.which;
+            if (keyCode === 13) {
+                performSearch();
+                return false;
+            }
+        };
+
+        // Test connection on page load
+        window.onload = function() {
+            var xhr;
+            if (window.XMLHttpRequest) {
+                xhr = new XMLHttpRequest();
+            } else if (window.ActiveXObject) {
+                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        showStatus('✓ Connected to SearXNG successfully! Ready to search.', false);
+                    } else {
+                        showStatus('⚠ Cannot connect to SearXNG. Please run setup_portproxy.ps1 as Administrator.', true);
+                    }
+                }
+            };
+
+            xhr.open('GET', SEARXNG_BASE + '/', true);
+            xhr.send();
+        };
+    </script>
+</body>
+</html>

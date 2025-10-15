@@ -20,7 +20,17 @@
       "Bash(timeout:*)",
       "Bash(rm:*)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:docs.searxng.org)"
+      "WebFetch(domain:docs.searxng.org)",
+      "Bash(systeminfo)",
+      "Bash(findstr:*)",
+      "Bash(wmic:*)",
+      "Bash(git --version)",
+      "Bash(dir:*)",
+      "Bash(curl:*)",
+      "Bash(wsl:*)",
+      "Bash(ping:*)",
+      "Bash(powershell:*)",
+      "Bash(netsh interface portproxy:*)"
     ],
     "deny": []
   }

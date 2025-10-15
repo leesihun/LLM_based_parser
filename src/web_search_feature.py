@@ -13,10 +13,12 @@ from datetime import datetime
 try:
     from .selenium_search import SeleniumSearcher
     from .html_search import HTMLSearcher
+    from .searxng_search import SearXNGSearcher
     from .keyword_extractor import KeywordExtractor
 except ImportError:
     from selenium_search import SeleniumSearcher
     from html_search import HTMLSearcher
+    from searxng_search import SearXNGSearcher
     from keyword_extractor import KeywordExtractor
 
 
@@ -26,26 +28,35 @@ class WebSearchFeature:
     def __init__(self, config: Optional[Dict] = None, llm_client=None):
         """Initialize web search feature"""
         self.config = config or {}
+        self.logger = logging.getLogger(__name__)
 
-        # Choose search method: HTML (fast, no CAPTCHA) or Selenium (full browser)
-        search_method = self.config.get('search_method', 'selenium').lower()
+        # Choose search method: searxng (default), html, or selenium
+        search_method = self.config.get('search_method', 'searxng').lower()
 
-        # Initialize primary searcher
-        if search_method == 'html':
+        # Initialize primary searcher and fallback
+        if search_method == 'searxng':
+            # Use SearXNG as primary, Selenium as fallback
+            try:
+                self.searcher = SearXNGSearcher(config)
+                self.fallback_searcher = SeleniumSearcher(config)
+                self.logger.info("Web Search Feature initialized with SearXNG + Selenium fallback")
+            except Exception as e:
+                self.logger.warning(f"SearXNG initialization failed: {e}, using Selenium only")
+                self.searcher = SeleniumSearcher(config)
+                self.fallback_searcher = None
+        elif search_method == 'html':
             self.searcher = HTMLSearcher(config)
             self.fallback_searcher = None
-            self.logger = logging.getLogger(__name__)
             self.logger.info("Web Search Feature initialized with HTML-based search (no CAPTCHA)")
         else:
+            # Selenium mode
             self.searcher = SeleniumSearcher(config)
             # Initialize HTML fallback if configured
             if self.config.get('fallback_to_html', False):
                 self.fallback_searcher = HTMLSearcher(config)
-                self.logger = logging.getLogger(__name__)
                 self.logger.info("Web Search Feature initialized with Selenium (Bing) + HTML fallback")
             else:
                 self.fallback_searcher = None
-                self.logger = logging.getLogger(__name__)
                 self.logger.info("Web Search Feature initialized with Selenium-based search")
 
         self.enabled = True
@@ -152,18 +163,20 @@ class WebSearchFeature:
             # Try searching with optimized queries
             all_results = []
             successful_query = None
-            
+
             for i, search_query in enumerate(search_queries):
                 try:
                     self.logger.info(f"Searching web with query {i+1}/{len(search_queries)}: {search_query}")
                     results = self.searcher.search(search_query, max_results)
 
-                    # If Selenium search returned no results and fallback is enabled, try HTML
+                    # If primary search returned no results and fallback is enabled, try fallback
                     if not results and self.fallback_searcher:
-                        self.logger.warning("Selenium search returned no results (possibly CAPTCHA), trying HTML fallback...")
+                        searcher_type = type(self.searcher).__name__
+                        fallback_type = type(self.fallback_searcher).__name__
+                        self.logger.warning(f"{searcher_type} search returned no results, trying {fallback_type} fallback...")
                         results = self.fallback_searcher.search(search_query, max_results)
                         if results:
-                            self.logger.info(f"HTML fallback successful: {len(results)} results")
+                            self.logger.info(f"{fallback_type} fallback successful: {len(results)} results")
 
                     if results:
                         all_results.extend(results)
@@ -175,17 +188,18 @@ class WebSearchFeature:
 
                 except Exception as e:
                     self.logger.warning(f"Search failed for query '{search_query}': {e}")
-                    # Try HTML fallback on exception
+                    # Try fallback on exception
                     if self.fallback_searcher:
                         try:
-                            self.logger.info("Trying HTML fallback after exception...")
+                            fallback_type = type(self.fallback_searcher).__name__
+                            self.logger.info(f"Trying {fallback_type} fallback after exception...")
                             results = self.fallback_searcher.search(search_query, max_results)
                             if results:
                                 all_results.extend(results)
                                 successful_query = search_query
-                                self.logger.info(f"HTML fallback successful: {len(results)} results")
+                                self.logger.info(f"{fallback_type} fallback successful: {len(results)} results")
                         except Exception as fallback_e:
-                            self.logger.error(f"HTML fallback also failed: {fallback_e}")
+                            self.logger.error(f"Fallback also failed: {fallback_e}")
                     continue
             
             # Remove duplicates based on URL
