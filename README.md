@@ -13,81 +13,52 @@ The repository is now split into two top-level domains:
 
 `server.py` remains at the repository root and simply boots the backend app via `backend.app.create_app`.
 
-### Page Assist TypeScript Web Search Integration 🚀
+### TypeScript-Only Web Search (Page Assist Original Code) 🚀
 
-- **Version**: 2025-10-16 (v2.1.0 - TypeScript Native)
-- **Change**: Integrated Page Assist-inspired web search providers with API-based search engines
-  - Added **Brave Search API** provider (`brave_api.py`) - requires API key
-  - Added **Tavily Search API** provider (`tavily_api.py`) - includes AI-generated answers
-  - Added **Exa Search API** provider (`exa_api.py`) - semantic search engine
-  - Enhanced **Google Search** provider with pagination and deduplication (mirrors Page Assist algorithm)
-  - Updated SearchManager with intelligent provider fallback system
-  - Added API key configuration in `config.json`
-- **Impact**: Web search now supports multiple premium search APIs alongside free providers. Users can choose between free HTML-based providers (Google, DuckDuckGo, Bing) and premium API providers (Brave, Tavily, Exa) for better quality and reliability.
+- **Version**: 2025-10-17 (v3.0.0 - TypeScript Native Only)
+- **Change**: **REMOVED all Python web search implementations** - Now uses ONLY TypeScript (Page Assist original code)
+  - ❌ **Deleted**: All Python provider files (`google.py`, `duckduckgo.py`, `bing.py`, `searxng.py`, etc.)
+  - ❌ **Deleted**: Selenium-based search implementation (`selenium_search.py`)
+  - ✅ **Using**: TypeScript bridge exclusively (`typescript_bridge.py` → `websearch_ts/search.js`)
+  - ✅ **Source**: 100% Page Assist original JavaScript/TypeScript code
+- **Impact**: Cleaner architecture, no Python HTML scraping, no Selenium dependencies. All search goes through Node.js with Page Assist's proven implementation.
 
-**Available Providers:**
-| Provider | Type | Requires API Key | Features |
-|----------|------|------------------|----------|
-| Google | HTML Scraping | No | Pagination, deduplication, region support |
-| DuckDuckGo | HTML Scraping | No | CAPTCHA-free, lightweight |
-| Bing | HTML/API | Optional | Fallback to web scraping |
-| SearXNG | API | No | Self-hosted metasearch |
-| **Brave API** | **API** | **Yes** | **Fast, reliable, structured results** |
-| **Tavily API** | **API** | **Yes** | **AI-generated answers, research-focused** |
-| **Exa API** | **API** | **Yes** | **Semantic search, AI-optimized** |
+**Available Providers (TypeScript Only):**
+| Provider | Type | Requires API Key | Source |
+|----------|------|------------------|--------|
+| Google | HTML Scraping | No | Page Assist original |
+| DuckDuckGo | HTML Scraping | No | Page Assist original |
+| **Brave API** | **API** | **Yes** | Page Assist original |
+| **Tavily API** | **API** | **Yes** | Page Assist original |
+| **Exa API** | **API** | **Yes** | Page Assist original |
 
 **Configuration:**
 ```json
 {
   "web_search": {
-    "default_provider": "google",  // or "brave_api", "tavily_api", "exa_api"
-    "providers": {
-      "google": { "enabled": true },
-      "duckduckgo": { "enabled": true },
-      "brave_api": { "enabled": false },
-      "tavily_api": { "enabled": false },
-      "exa_api": { "enabled": false }
-    },
+    "enabled": true,
+    "default_provider": "duckduckgo",  // or "google", "brave_api", "tavily_api", "exa_api"
     "google_domain": "google.com",
-    "brave_api_key": "YOUR_BRAVE_API_KEY",
-    "tavily_api_key": "YOUR_TAVILY_API_KEY",
-    "exa_api_key": "YOUR_EXA_API_KEY"
+    "brave_api_key": "",  // Optional: Get from https://brave.com/search/api/
+    "tavily_api_key": "",  // Optional: Get from https://tavily.com/
+    "exa_api_key": ""  // Optional: Get from https://exa.ai/
   }
 }
 ```
 
-**Get API Keys:**
-- Brave API: https://brave.com/search/api/
-- Tavily API: https://tavily.com/
-- Exa API: https://exa.ai/
+**Requirements:**
+- ✅ **Node.js** (https://nodejs.org/) - Required for TypeScript search
+- ✅ **npm packages** - Auto-installed on first run (`npm install` in `websearch_ts/`)
+- ❌ **Selenium** - No longer needed (removed)
+- ❌ **ChromeDriver** - No longer needed (removed)
 
-**TypeScript Bridge (New!):**
-- ✅ **Page Assist 원본 코드를 TypeScript로 그대로 사용**
-  - Python이 아닌 **Node.js로 실제 검색 실행** (`websearch_ts/search.js`)
-  - Page Assist의 Google, DuckDuckGo, Brave API, Tavily API, Exa API 코드 100% 그대로
-  - Python에서 subprocess로 Node.js 호출 (`typescript_bridge.py`)
-  - JSON으로 결과 주고받기
-  
-**설정:**
-```json
-{
-  "web_search": {
-    "use_typescript_search": true,  // TypeScript 사용 (기본값)
-    "default_provider": "duckduckgo"
-  }
-}
-```
-
-**요구사항:**
-- Node.js 설치 필요 (https://nodejs.org/)
-- 첫 실행 시 자동으로 `npm install` 실행
-
-**작동 방식:**
-1. Python API 호출 → SearchManager
-2. SearchManager → TypeScriptSearchBridge
-3. TypeScriptSearchBridge → `node search.js` 실행
-4. Node.js가 Page Assist 원본 코드로 검색
-5. JSON 결과 반환 → Python
+**How It Works:**
+1. Python API request → `SearchManager`
+2. `SearchManager` → `TypeScriptSearchBridge`
+3. `TypeScriptSearchBridge` → Execute `node websearch_ts/search.js <provider> <query>`
+4. Node.js runs Page Assist original code
+5. JSON results returned to Python
+6. Results processed and cached
 
 **Bug Fixes:**
 - Fixed `AttributeError: 'WebSearchFeature' object has no attribute 'search_and_chat'`

@@ -12,9 +12,11 @@ from datetime import datetime
 # Import search systems
 from backend.services.search.keyword_extractor import KeywordExtractor
 from backend.services.search.manager import SearchManager
-from backend.services.search.searxng_search import SearXNGSearcher
-from backend.services.search.selenium_search import SeleniumSearcher
 from backend.services.search.types import SearchExecution, SearchResult
+
+# Removed imports (Python providers deleted - using TypeScript only):
+# - SearXNGSearcher (deleted)
+# - SeleniumSearcher (deleted)
 
 
 class WebSearchFeature:
@@ -306,71 +308,21 @@ class WebSearchFeature:
                 'timestamp': datetime.now().isoformat()
             }
 
-    def _ensure_searxng_searcher(self) -> Optional[SearXNGSearcher]:
-        """Lazily initialise the SearXNG fallback searcher."""
-        if self._searxng_failed:
-            return None
-        if not self._searxng_initialised:
-            self._searxng_initialised = True
-            try:
-                if 'SearXNGSearcher' in globals():
-                    self._searxng_fallback = SearXNGSearcher(self.config)
-                else:
-                    self._searxng_failed = True
-            except Exception as exc:
-                self.logger.warning(f"SearXNG fallback initialisation failed: {exc}")
-                self._searxng_failed = True
-                self._searxng_fallback = None
-        return self._searxng_fallback
+    def _ensure_searxng_searcher(self):
+        """SearXNG fallback removed - using TypeScript only."""
+        return None
 
-    def _ensure_selenium_searcher(self) -> Optional[SeleniumSearcher]:
-        """Lazily initialise the Selenium fallback searcher."""
-        if self._selenium_failed:
-            return None
-        if not self._selenium_initialised:
-            self._selenium_initialised = True
-            try:
-                if 'SeleniumSearcher' in globals():
-                    self._selenium_fallback = SeleniumSearcher(self.config)
-                else:
-                    self._selenium_failed = True
-            except Exception as exc:
-                self.logger.warning(f"Selenium fallback initialisation failed: {exc}")
-                self._selenium_failed = True
-                self._selenium_fallback = None
-        return self._selenium_fallback
+    def _ensure_selenium_searcher(self):
+        """Selenium fallback removed - using TypeScript only."""
+        return None
 
     def _run_fallback_searxng(self, query: str, max_results: int) -> Optional[SearchExecution]:
-        searcher = self._ensure_searxng_searcher()
-        if not searcher:
-            return None
-        try:
-            raw_results = searcher.search(query, max_results)
-            if not raw_results:
-                return None
-            execution = self._build_execution_from_raw(query, raw_results, max_results, "searxng")
-            if execution:
-                self.logger.info("SearXNG fallback provided %s results", execution.result_count)
-            return execution
-        except Exception as exc:
-            self.logger.warning("SearXNG fallback search failed: %s", exc)
-            return None
+        """SearXNG fallback removed - using TypeScript only."""
+        return None
 
     def _run_fallback_selenium(self, query: str, max_results: int) -> Optional[SearchExecution]:
-        searcher = self._ensure_selenium_searcher()
-        if not searcher:
-            return None
-        try:
-            raw_results = searcher.search(query, max_results)
-            if not raw_results:
-                return None
-            execution = self._build_execution_from_raw(query, raw_results, max_results, "selenium")
-            if execution:
-                self.logger.info("Selenium fallback provided %s results", execution.result_count)
-            return execution
-        except Exception as exc:
-            self.logger.warning("Selenium fallback search failed: %s", exc)
-            return None
+        """Selenium fallback removed - using TypeScript only."""
+        return None
 
     def _build_execution_from_raw(
         self,
