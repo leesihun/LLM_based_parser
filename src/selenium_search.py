@@ -215,6 +215,8 @@ class SeleniumSearcher:
                         [chrome_path, '--version'],
                         capture_output=True,
                         text=True,
+                        encoding='utf-8',
+                        errors='ignore',
                         timeout=5
                     )
                     version_output = result.stdout.strip()
@@ -281,7 +283,13 @@ class SeleniumSearcher:
             ]
 
             self.logger.info(f"Starting Chrome in debug mode on port {port}")
-            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                encoding='utf-8',
+                errors='ignore'
+            )
 
             # Wait for Chrome to start
             time.sleep(3)

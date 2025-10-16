@@ -45,7 +45,7 @@
       "search_method": "searxng",
       "simple_mode": false,
       "visit_specific_website": true,
-      "searxng_url": "http://172.20.221.97:8080",
+      "searxng_url": "http://192.168.219.113:8080",
       "searxng_json_mode": false,
       "auto_restart_searxng": true,
       "restart_on_search_failure": true,

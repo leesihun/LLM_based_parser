@@ -189,6 +189,8 @@ class SearXNGSearcher:
                 ['wsl', 'bash', '-c', curl_cmd_str],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=self.timeout + 5
             )
 
@@ -231,6 +233,8 @@ class SearXNGSearcher:
                 ['curl', '-s', '--max-time', str(int(self.timeout)), url],
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=self.timeout + 5
             )
 
