@@ -9,6 +9,8 @@ PyPDF2==3.0.1
 python-docx==0.8.11
 selenium==4.15.2
 webdriver-manager==4.0.1
+requests==2.31.0
+beautifulsoup4==4.12.3
 
 # Enhanced File Processing
 pdfplumber==0.9.0          # Advanced PDF processing with tables

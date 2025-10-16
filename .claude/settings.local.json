@@ -30,7 +30,9 @@
       "Bash(wsl:*)",
       "Bash(ping:*)",
       "Bash(powershell:*)",
-      "Bash(netsh interface portproxy:*)"
+      "Bash(netsh interface portproxy:*)",
+      "Bash(netstat:*)",
+      "Bash(git config:*)"
     ],
     "deny": []
   }

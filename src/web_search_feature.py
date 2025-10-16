@@ -6,20 +6,22 @@ Integrates browser-based web search capability into the LLM system
 
 import json
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Iterable
 from datetime import datetime
 
 # Import search systems
 try:
     from .selenium_search import SeleniumSearcher
-    from .html_search import HTMLSearcher
     from .searxng_search import SearXNGSearcher
     from .keyword_extractor import KeywordExtractor
+    from .search import SearchManager
+    from .search.types import SearchExecution, SearchResult
 except ImportError:
     from selenium_search import SeleniumSearcher
-    from html_search import HTMLSearcher
     from searxng_search import SearXNGSearcher
     from keyword_extractor import KeywordExtractor
+    from search import SearchManager
+    from search.types import SearchExecution, SearchResult
 
 
 class WebSearchFeature:
@@ -30,34 +32,20 @@ class WebSearchFeature:
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
 
-        # Choose search method: searxng (default), html, or selenium
-        search_method = self.config.get('search_method', 'searxng').lower()
-
-        # Initialize primary searcher and fallback
-        if search_method == 'searxng':
-            # Use SearXNG as primary, Selenium as fallback
-            try:
-                self.searcher = SearXNGSearcher(config)
-                self.fallback_searcher = SeleniumSearcher(config)
-                self.logger.info("Web Search Feature initialized with SearXNG + Selenium fallback")
-            except Exception as e:
-                self.logger.warning(f"SearXNG initialization failed: {e}, using Selenium only")
-                self.searcher = SeleniumSearcher(config)
-                self.fallback_searcher = None
-        elif search_method == 'html':
-            self.searcher = HTMLSearcher(config)
-            self.fallback_searcher = None
-            self.logger.info("Web Search Feature initialized with HTML-based search (no CAPTCHA)")
-        else:
-            # Selenium mode
-            self.searcher = SeleniumSearcher(config)
-            # Initialize HTML fallback if configured
-            if self.config.get('fallback_to_html', False):
-                self.fallback_searcher = HTMLSearcher(config)
-                self.logger.info("Web Search Feature initialized with Selenium (Bing) + HTML fallback")
-            else:
-                self.fallback_searcher = None
-                self.logger.info("Web Search Feature initialized with Selenium-based search")
+        # Adopt modular search manager mirroring Page Assist behaviour
+        self.search_manager = SearchManager(self.config)
+        self.searcher = None  # retained for backward compatibility with older integrations
+        self.fallback_searcher = None
+        self._searxng_fallback = None
+        self._searxng_initialised = False
+        self._searxng_failed = False
+        self._selenium_fallback = None
+        self._selenium_initialised = False
+        self._selenium_failed = False
+        self.logger.info(
+            "Web Search Feature initialised with modular manager "
+            f"(default provider: {self.search_manager.settings.default_provider})"
+        )
 
         self.enabled = True
         self.search_history = []
@@ -117,19 +105,19 @@ class WebSearchFeature:
                         keywords = extraction_info.get('keywords', [])
                         method = extraction_info.get('method', 'unknown')
                         
-                        self.logger.info(f"✓ LLM extracted {len(keywords)} keywords using {method} method")
-                        self.logger.info(f"✓ Keywords: {keywords[:5]}")  # Show first 5
-                        self.logger.info(f"✓ Generated {len(search_queries)} optimized queries: {search_queries}")
+                        self.logger.info(f"??LLM extracted {len(keywords)} keywords using {method} method")
+                        self.logger.info(f"??Keywords: {keywords[:5]}")  # Show first 5
+                        self.logger.info(f"??Generated {len(search_queries)} optimized queries: {search_queries}")
                     else:
                         reason = "no adequate keywords found" if not extraction_info.get('adequate_keywords') else "no queries generated"
-                        self.logger.warning(f"✗ Keyword extraction failed: {reason}")
-                        self.logger.warning(f"✗ Extraction info: {extraction_info}")
+                        self.logger.warning(f"??Keyword extraction failed: {reason}")
+                        self.logger.warning(f"??Extraction info: {extraction_info}")
                         
                         # For LLM-based extraction, we might want to be more lenient
                         # If LLM was used but failed, fall back to original query
                         llm_config = self.config.get('keyword_extraction', {})
                         if llm_config.get('use_llm') and llm_config.get('llm_extraction', {}).get('fallback_to_original', True):
-                            self.logger.info(f"✓ Falling back to original query: {query}")
+                            self.logger.info(f"??Falling back to original query: {query}")
                             search_queries = [query]
                         else:
                             return {
@@ -141,12 +129,12 @@ class WebSearchFeature:
                                 'extraction_info': extraction_info
                             }
                 except Exception as e:
-                    self.logger.error(f"✗ Keyword extraction failed with exception: {e}")
+                    self.logger.error(f"??Keyword extraction failed with exception: {e}")
                     
                     # Check if we should fall back to original query
                     llm_config = self.config.get('keyword_extraction', {})
                     if llm_config.get('use_llm') and llm_config.get('llm_extraction', {}).get('fallback_to_original', True):
-                        self.logger.info(f"✓ Exception fallback to original query: {query}")
+                        self.logger.info(f"??Exception fallback to original query: {query}")
                         search_queries = [query]
                     else:
                         return {
@@ -160,72 +148,90 @@ class WebSearchFeature:
                 # If keyword extraction is disabled, use original query only
                 search_queries = [query]
             
-            # Try searching with optimized queries
-            all_results = []
-            successful_query = None
+            # Execute searches using the modular manager
+            successful_execution: Optional[SearchExecution] = None
+            attempted_queries: List[str] = []
+            execution_history: List[SearchExecution] = []
+            successful_query: Optional[str] = None
+            last_query_attempted: Optional[str] = None
 
             for i, search_query in enumerate(search_queries):
-                try:
-                    self.logger.info(f"Searching web with query {i+1}/{len(search_queries)}: {search_query}")
-                    results = self.searcher.search(search_query, max_results)
+                self.logger.info(
+                    "Searching web with query %s/%s via manager: %s",
+                    i + 1,
+                    len(search_queries),
+                    search_query,
+                )
+                attempted_queries.append(search_query)
+                execution = self.search_manager.search(search_query, max_results)
+                execution_history.append(execution)
+                last_query_attempted = search_query
 
-                    # If primary search returned no results and fallback is enabled, try fallback
-                    if not results and self.fallback_searcher:
-                        searcher_type = type(self.searcher).__name__
-                        fallback_type = type(self.fallback_searcher).__name__
-                        self.logger.warning(f"{searcher_type} search returned no results, trying {fallback_type} fallback...")
-                        results = self.fallback_searcher.search(search_query, max_results)
-                        if results:
-                            self.logger.info(f"{fallback_type} fallback successful: {len(results)} results")
+                if execution.success and execution.results:
+                    successful_execution = execution
+                    successful_query = search_query
+                    break
+                else:
+                    self.logger.warning(
+                        "No results for query '%s' (provider=%s, error=%s)",
+                        search_query,
+                        execution.provider,
+                        execution.error,
+                    )
 
-                    if results:
-                        all_results.extend(results)
-                        successful_query = search_query
+            fallback_query = last_query_attempted or (search_queries[-1] if search_queries else query)
 
-                        # If we got good results from first query, we can stop
-                        if len(results) >= (max_results or 5) // 2:
-                            break
+            if (not successful_execution or not successful_execution.results) and fallback_query:
+                searxng_execution = self._run_fallback_searxng(fallback_query, max_results or 5)
+                if searxng_execution and searxng_execution.results:
+                    successful_execution = searxng_execution
+                    successful_query = fallback_query
+                    attempted_queries.append(f"{fallback_query} [searxng]")
 
-                except Exception as e:
-                    self.logger.warning(f"Search failed for query '{search_query}': {e}")
-                    # Try fallback on exception
-                    if self.fallback_searcher:
-                        try:
-                            fallback_type = type(self.fallback_searcher).__name__
-                            self.logger.info(f"Trying {fallback_type} fallback after exception...")
-                            results = self.fallback_searcher.search(search_query, max_results)
-                            if results:
-                                all_results.extend(results)
-                                successful_query = search_query
-                                self.logger.info(f"{fallback_type} fallback successful: {len(results)} results")
-                        except Exception as fallback_e:
-                            self.logger.error(f"Fallback also failed: {fallback_e}")
-                    continue
-            
-            # Remove duplicates based on URL
-            seen_urls = set()
-            unique_results = []
-            for result in all_results:
-                url = result.get('url', '')
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    unique_results.append(result)
-            
-            # Limit to max_results
-            if max_results and len(unique_results) > max_results:
-                unique_results = unique_results[:max_results]
-            
-            results = unique_results
+            if (not successful_execution or not successful_execution.results) and fallback_query:
+                selenium_execution = self._run_fallback_selenium(fallback_query, max_results or 5)
+                if selenium_execution and selenium_execution.results:
+                    successful_execution = selenium_execution
+                    successful_query = fallback_query
+                    attempted_queries.append(f"{fallback_query} [selenium]")
+
+            if not successful_execution or not successful_execution.results:
+                last_error = (
+                    execution_history[-1].error
+                    if execution_history and execution_history[-1].error
+                    else "No provider returned results."
+                )
+                self.logger.warning(
+                    "Web search failed for queries %s. Last error: %s",
+                    attempted_queries,
+                    last_error,
+                )
+                return {
+                    'success': False,
+                    'error': last_error,
+                    'results': [],
+                    'query': query,
+                    'timestamp': datetime.now().isoformat(),
+                    'keyword_extraction_used': extract_keywords,
+                    'queries_tried': attempted_queries,
+                    'extraction_info': extraction_info
+                }
+
+            results = [result.to_dict() for result in successful_execution.results]
+            structured_prompt = successful_execution.prompt
+            structured_sources = successful_execution.sources
+            provider_used = successful_execution.provider
             
             # Log search in history
             search_entry = {
                 'query': query,
                 'timestamp': datetime.now().isoformat(),
                 'result_count': len(results),
-                'success': len(results) > 0,
+                'success': True,
                 'keyword_extraction_used': extract_keywords,
                 'successful_query': successful_query if successful_query != query else None,
-                'queries_tried': len(search_queries) if extract_keywords else 1
+                'queries_tried': attempted_queries if attempted_queries else [query],
+                'provider': provider_used
             }
             self.search_history.append(search_entry)
             
@@ -242,7 +248,11 @@ class WebSearchFeature:
                 'keyword_extraction_used': extract_keywords,
                 'extraction_info': extraction_info,
                 'successful_query': successful_query,
-                'queries_tried': search_queries if extract_keywords else [query]
+                'queries_tried': attempted_queries if attempted_queries else [query],
+                'structured_results': structured_prompt,
+                'sources': structured_sources,
+                'provider': provider_used,
+                'answer': successful_execution.answer
             }
             
             # Add formatted context if requested
@@ -251,7 +261,6 @@ class WebSearchFeature:
             
             self.logger.info(f"Web search completed: {len(results)} results found")
             return search_result
-            
         except Exception as e:
             self.logger.error(f"Web search failed: {str(e)}")
             return {
@@ -261,182 +270,235 @@ class WebSearchFeature:
                 'query': query,
                 'timestamp': datetime.now().isoformat()
             }
-    
-    def _format_for_llm(self, query: str, results: List[Dict[str, str]]) -> str:
-        """Format search results for LLM consumption"""
+
+    def _ensure_searxng_searcher(self) -> Optional[SearXNGSearcher]:
+        """Lazily initialise the SearXNG fallback searcher."""
+        if self._searxng_failed:
+            return None
+        if not self._searxng_initialised:
+            self._searxng_initialised = True
+            try:
+                if 'SearXNGSearcher' in globals():
+                    self._searxng_fallback = SearXNGSearcher(self.config)
+                else:
+                    self._searxng_failed = True
+            except Exception as exc:
+                self.logger.warning(f"SearXNG fallback initialisation failed: {exc}")
+                self._searxng_failed = True
+                self._searxng_fallback = None
+        return self._searxng_fallback
+
+    def _ensure_selenium_searcher(self) -> Optional[SeleniumSearcher]:
+        """Lazily initialise the Selenium fallback searcher."""
+        if self._selenium_failed:
+            return None
+        if not self._selenium_initialised:
+            self._selenium_initialised = True
+            try:
+                if 'SeleniumSearcher' in globals():
+                    self._selenium_fallback = SeleniumSearcher(self.config)
+                else:
+                    self._selenium_failed = True
+            except Exception as exc:
+                self.logger.warning(f"Selenium fallback initialisation failed: {exc}")
+                self._selenium_failed = True
+                self._selenium_fallback = None
+        return self._selenium_fallback
+
+    def _run_fallback_searxng(self, query: str, max_results: int) -> Optional[SearchExecution]:
+        searcher = self._ensure_searxng_searcher()
+        if not searcher:
+            return None
+        try:
+            raw_results = searcher.search(query, max_results)
+            if not raw_results:
+                return None
+            execution = self._build_execution_from_raw(query, raw_results, max_results, "searxng")
+            if execution:
+                self.logger.info("SearXNG fallback provided %s results", execution.result_count)
+            return execution
+        except Exception as exc:
+            self.logger.warning("SearXNG fallback search failed: %s", exc)
+            return None
+
+    def _run_fallback_selenium(self, query: str, max_results: int) -> Optional[SearchExecution]:
+        searcher = self._ensure_selenium_searcher()
+        if not searcher:
+            return None
+        try:
+            raw_results = searcher.search(query, max_results)
+            if not raw_results:
+                return None
+            execution = self._build_execution_from_raw(query, raw_results, max_results, "selenium")
+            if execution:
+                self.logger.info("Selenium fallback provided %s results", execution.result_count)
+            return execution
+        except Exception as exc:
+            self.logger.warning("Selenium fallback search failed: %s", exc)
+            return None
+
+    def _build_execution_from_raw(
+        self,
+        query: str,
+        raw_results: Iterable[Dict[str, Any]],
+        max_results: int,
+        provider_label: str,
+    ) -> Optional[SearchExecution]:
+        items = list(raw_results)[:max_results]
+        if not items:
+            return None
+        search_results: List[SearchResult] = []
+        seen_urls = set()
+        for item in items:
+            url = item.get('url', '')
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+            snippet = item.get('snippet') or item.get('content') or ''
+            search_results.append(
+                SearchResult(
+                    title=item.get('title') or snippet or url,
+                    url=url,
+                    snippet=snippet,
+                    source=item.get('source') or provider_label,
+                    content=item.get('content')
+                )
+            )
+        if not search_results:
+            return None
+        if self.search_manager.settings.simple_mode:
+            for result in search_results:
+                result.content = result.snippet
+        else:
+            self.search_manager.enrich_results(search_results, query)
+        prompt = self.search_manager.build_prompt(search_results)
+        sources = self.search_manager.build_sources(search_results)
+        return SearchExecution(
+            query=query,
+            provider=provider_label,
+            success=True,
+            results=search_results,
+            prompt=prompt,
+            sources=sources,
+        )
+
+    def _format_for_llm(self, query: str, results: List[Dict[str, Any]]) -> str:
         if not results:
             return f"No web search results found for: {query}"
-        
-        formatted = f"Web Search Results for '{query}':\n\n"
-        
-        for i, result in enumerate(results, 1):
-            formatted += f"**Result {i}:**\n"
-            formatted += f"Title: {result.get('title', 'No title')}\n"
-            
-            if result.get('snippet'):
-                formatted += f"Summary: {result['snippet']}\n"
-            
-            if result.get('url'):
-                formatted += f"URL: {result['url']}\n"
-            
-            if result.get('source'):
-                formatted += f"Source: {result['source']}\n"
-            
-            formatted += "\n"
-        
-        return formatted
-    
+
+        formatted = [f"Web Search Results for '{query}':\n"]
+        for idx, result in enumerate(results, start=1):
+            title = result.get('title', 'No title')
+            formatted.append(f"**Result {idx}:**")
+            formatted.append(f"Title: {title}")
+            snippet = result.get('snippet') or result.get('content')
+            if snippet:
+                formatted.append(f"Summary: {snippet}")
+            url = result.get('url')
+            if url:
+                formatted.append(f"URL: {url}")
+            source = result.get('source')
+            if source:
+                formatted.append(f"Source: {source}")
+            formatted.append("")
+        return "\n".join(formatted)
     def get_search_capabilities(self) -> Dict[str, Any]:
-        """Get information about search capabilities"""
-        test_result = self.searcher.test_search_capability()
-        
+        """Return a snapshot of search feature status and a quick probe result."""
+        test_query = "python programming"
+        execution = self.search_manager.search(test_query, max_results=3)
+        probe = execution
+
+        if (not execution.success or not execution.results) and self._ensure_searxng_searcher():
+            probe = self._run_fallback_searxng(test_query, 3) or execution
+
         return {
             'enabled': self.enabled,
-            'test_status': test_result,
-            'recent_searches': len(self.search_history),
-            'last_search': self.search_history[-1] if self.search_history else None
+            'keyword_extraction_enabled': self.use_keyword_extraction,
+            'recent_activity': len(self.search_history),
+            'provider': probe.provider if probe else None,
+            'success': bool(probe and probe.success and probe.results),
+            'result_count': probe.result_count if probe else 0,
+            'error': probe.error if probe and not probe.success else None,
         }
-    
+
     def enable_search(self):
-        """Enable web search feature"""
         self.enabled = True
         self.logger.info("Web search feature enabled")
-    
+
     def disable_search(self):
-        """Disable web search feature"""
         self.enabled = False
         self.logger.info("Web search feature disabled")
-    
+
     def clear_history(self):
-        """Clear search history"""
         self.search_history = []
         self.logger.info("Search history cleared")
-    
+
     def get_search_history(self) -> List[Dict[str, Any]]:
-        """Get search history"""
-        return self.search_history.copy()
-    
+        return list(self.search_history)
+
     def enable_keyword_extraction(self):
-        """Enable keyword extraction for searches"""
         self.use_keyword_extraction = True
         self.logger.info("Keyword extraction enabled")
-    
+
     def disable_keyword_extraction(self):
-        """Disable keyword extraction for searches"""
         self.use_keyword_extraction = False
         self.logger.info("Keyword extraction disabled")
-    
-    def search_with_raw_query(self, query: str, max_results: Optional[int] = None, 
-                             format_for_llm: bool = True) -> Dict[str, Any]:
-        """
-        Perform search using the original query without keyword extraction
-        
-        Args:
-            query: Search query string
-            max_results: Maximum number of results
-            format_for_llm: Whether to format results for LLM consumption
-            
-        Returns:
-            Dictionary with search results and metadata
-        """
+
+    def search_with_raw_query(self, query: str, max_results: Optional[int] = None,
+                              format_for_llm: bool = True) -> Dict[str, Any]:
         return self.search_web(query, max_results, format_for_llm, use_keyword_extraction=False)
-    
-    def search_with_keyword_extraction(self, query: str, max_results: Optional[int] = None, 
-                                     format_for_llm: bool = True) -> Dict[str, Any]:
-        """
-        Perform search using keyword extraction
-        
-        Args:
-            query: Search query string
-            max_results: Maximum number of results
-            format_for_llm: Whether to format results for LLM consumption
-            
-        Returns:
-            Dictionary with search results and metadata
-        """
+
+    def search_with_keyword_extraction(self, query: str, max_results: Optional[int] = None,
+                                       format_for_llm: bool = True) -> Dict[str, Any]:
         return self.search_web(query, max_results, format_for_llm, use_keyword_extraction=True)
-    
+
     def search_and_summarize(self, query: str, max_results: Optional[int] = None) -> str:
-        """
-        Perform search and return a summary suitable for LLM context
-        
-        Args:
-            query: Search query
-            max_results: Maximum results to return
-            
-        Returns:
-            Formatted summary string
-        """
-        search_result = self.search_web(query, max_results, format_for_llm=True)
-        
-        if search_result['success']:
-            return search_result['formatted_context']
-        else:
-            return f"Web search failed for '{query}': {search_result.get('error', 'Unknown error')}"
-    
+        result = self.search_web(query, max_results, format_for_llm=True)
+        if result.get('success'):
+            return result.get('formatted_context', '')
+        return f"Web search failed for '{query}': {result.get('error', 'Unknown error')}"
+
     def close(self):
-        """Clean up resources"""
-        if hasattr(self, 'searcher'):
-            self.searcher.close()
+        return
 
 
-# Utility functions for integration
 def create_web_search_feature(config: Optional[Dict] = None, llm_client=None) -> WebSearchFeature:
-    """Create and return a web search feature instance"""
     return WebSearchFeature(config, llm_client)
 
 
 def test_web_search_integration():
-    """Test the web search integration"""
     print("Testing Web Search Feature Integration")
     print("=" * 50)
-    
-    # Create feature instance
+
     search_feature = create_web_search_feature()
-    
-    # Test capabilities
+
     capabilities = search_feature.get_search_capabilities()
     print(f"Search enabled: {capabilities['enabled']}")
-    print(f"Test status: {'SUCCESS' if capabilities['test_status']['success'] else 'FAILED'}")
-    
-    if capabilities['test_status']['success']:
-        engines = capabilities['test_status']['engines_working']
-        print(f"Working engines: {', '.join(engines)}")
-    
-    # Test search functionality
+    print(f"Probe success: {'SUCCESS' if capabilities['success'] else 'FAILED'}")
+    if capabilities['success']:
+        print(f"Provider used: {capabilities.get('provider')}")
+    else:
+        print(f"Error: {capabilities.get('error')}")
+
     print("\n" + "-" * 30)
     print("Testing search functionality")
-    
     test_query = "python web scraping tutorial"
-    result = search_feature.search_web(test_query, max_results=3)
-    
-    print(f"Search query: {test_query}")
+    result = search_feature.search_web(test_query, max_results=2)
     print(f"Search success: {result['success']}")
-    
     if result['success']:
-        print(f"Results found: {result['result_count']}")
-        
-        # Show formatted context
-        print("\nFormatted for LLM:")
-        print("-" * 20)
-        print(result['formatted_context'][:500] + "..." if len(result['formatted_context']) > 500 else result['formatted_context'])
+        print(f"Provider: {result.get('provider')}")
+        print(f"Results returned: {result.get('result_count')}")
     else:
-        print(f"Search error: {result.get('error', 'Unknown error')}")
-    
-    # Test search and summarize
+        print(f"Error: {result.get('error')}")
+
     print("\n" + "-" * 30)
     print("Testing search and summarize")
-    
     summary = search_feature.search_and_summarize("artificial intelligence ethics", max_results=2)
-    print("Summary:")
-    print(summary[:400] + "..." if len(summary) > 400 else summary)
-    
-    # Show search history
-    history = search_feature.get_search_history()
-    print(f"\nSearch history entries: {len(history)}")
-    
-    search_feature.close()
-    print("\nTest completed successfully!")
+    print(summary[:400] + ("..." if len(summary) > 400 else ""))
+
+    print(f"\nSearch history entries: {len(search_feature.get_search_history())}")
+    print("\nTest completed")
 
 
 if __name__ == "__main__":

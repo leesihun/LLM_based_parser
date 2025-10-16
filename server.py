@@ -286,6 +286,10 @@ def web_search():
             'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
             'optimized_queries': search_result.get('queries_tried', [query]),
             'successful_query': search_result.get('successful_query'),
+            'provider': search_result.get('provider'),
+            'structured_results': search_result.get('structured_results'),
+            'sources': search_result.get('sources', []),
+            'answer': search_result.get('answer'),
             'error': search_result.get('error')
         })
         

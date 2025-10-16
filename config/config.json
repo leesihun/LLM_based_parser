@@ -41,12 +41,19 @@
     },
     "web_search": {
       "enabled": true,
+      "default_provider": "searxng",
       "search_method": "searxng",
-      "searxng_url": "http://192.168.219.113:8080",
+      "simple_mode": false,
+      "visit_specific_website": true,
+      "searxng_url": "http://172.20.221.97:8080",
+      "searxng_json_mode": false,
+      "auto_restart_searxng": true,
+      "restart_on_search_failure": true,
       "search_engine": "bing",
       "fallback_to_html": false,
       "fallback_to_google": false,
       "use_keyword_extraction": true,
+      "total_results": 5,
       "max_results": 5,
       "timeout": 100,
       "delay": 10,
@@ -69,6 +76,17 @@
           "temperature": 0,
           "max_tokens": 200,
           "fallback_to_original": true
+        }
+      },
+      "providers": {
+        "searxng": {
+          "enabled": true
+        },
+        "duckduckgo": {
+          "enabled": true
+        },
+        "brave": {
+          "enabled": true
         }
       }
     },

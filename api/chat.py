@@ -307,14 +307,23 @@ Please answer the question using the provided context when relevant."""
                     'search_failed': True
                 }), 400
             
-            search_results = search_result.get('formatted_context', 'No search results available')
+            structured_prompt = search_result.get('structured_results')
+            search_results = structured_prompt or search_result.get('formatted_context', 'No search results available')
             search_processing_time = (time.time() - search_start_time) * 1000
             
             # Add user message to conversation memory
             memory.add_message(session_id, 'user', user_message)
             
             # Create enhanced prompt with search results
-            enhanced_message = f"""Web Search Results:
+            if structured_prompt:
+                enhanced_message = f"""Web Search Results (each <result> element includes source metadata):
+{search_results}
+
+User Question: {user_message}
+
+Please answer the user's question using the search results above when relevant. Always cite your sources."""
+            else:
+                enhanced_message = f"""Web Search Results:
 {search_results}
 
 User Question: {user_message}
@@ -354,6 +363,8 @@ Please answer the user's question using the search results above when relevant. 
                 'search_context_used': True,
                 'search_results_count': search_result.get('result_count', 0),
                 'search_results': search_result.get('results', []),  # Include actual search results
+                'search_prompt': search_result.get('structured_results'),
+                'search_sources': search_result.get('sources', []),
                 'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
                 'optimized_queries': search_result.get('queries_tried', [user_message]),
                 'successful_query': search_result.get('successful_query'),
