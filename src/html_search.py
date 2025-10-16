@@ -4,19 +4,28 @@ HTML-Based Search (No Selenium)
 Uses simple HTTP requests to avoid CAPTCHA entirely
 """
 
-import requests
 import logging
-from typing import List, Dict, Optional
-from datetime import datetime
-from urllib.parse import quote_plus
-import time
 import random
+import time
+from datetime import datetime
+from typing import Dict, List, Optional
+from urllib.parse import parse_qs, quote_plus, unquote, urlparse
+
+import requests
 
 try:
     from bs4 import BeautifulSoup
     BS4_AVAILABLE = True
 except ImportError:
     BS4_AVAILABLE = False
+
+try:
+    from duckduckgo_search import DDGS  # type: ignore
+
+    DDGS_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    DDGS = None  # type: ignore
+    DDGS_AVAILABLE = False
 
 
 class HTMLSearcher:
@@ -77,61 +86,117 @@ class HTMLSearcher:
         time.sleep(delay)
 
     def _search_duckduckgo_html(self, query: str, max_results: int) -> List[Dict[str, str]]:
-        """Search DuckDuckGo using HTML (no JavaScript, no CAPTCHA)"""
-        results = []
+        """Search DuckDuckGo using HTML (no JavaScript, no CAPTCHA)."""
 
-        try:
-            # DuckDuckGo HTML endpoint
-            url = "https://html.duckduckgo.com/html/"
-            params = {'q': query}
+        def _normalise_url(raw_url: str) -> str:
+            """Unwrap DuckDuckGo redirect URLs and ensure they are absolute."""
+            if not raw_url:
+                return ""
+            url = raw_url.strip()
+            if url.startswith("//"):
+                url = f"https:{url}"
+            parsed = urlparse(url)
+            if parsed.netloc.endswith("duckduckgo.com") and parsed.path == "/l/":
+                uddg = parse_qs(parsed.query).get("uddg")
+                if uddg:
+                    return unquote(uddg[0])
+            return url
 
-            self.logger.info(f"🔍 [DUCKDUCKGO] Searching DuckDuckGo HTML: {query}")
-            response = self.session.post(url, data=params, timeout=self.timeout, verify=self.verify_ssl)
-            response.raise_for_status()
-            self.logger.info(f"✅ [DUCKDUCKGO] Received response: {response.status_code}")
+        def _parse_results(soup: BeautifulSoup) -> List[Dict[str, str]]:
+            containers = soup.find_all("div", class_="result")
+            if not containers:
+                containers = soup.select("article[data-testid='result']")
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Find result containers
-            result_elements = soup.find_all('div', class_='result')
-
-            for element in result_elements[:max_results]:
-                try:
-                    # Extract title and URL
-                    title_elem = element.find('a', class_='result__a')
-                    if not title_elem:
-                        continue
-
-                    title = title_elem.get_text(strip=True)
-                    url = title_elem.get('href', '')
-
-                    # Extract snippet
-                    snippet = ""
-                    snippet_elem = element.find('a', class_='result__snippet')
-                    if snippet_elem:
-                        snippet = snippet_elem.get_text(strip=True)[:200]
-
-                    # Skip if no title or URL
-                    if not title or not url:
-                        continue
-
-                    results.append({
-                        'title': title,
-                        'snippet': snippet + "..." if snippet else "DuckDuckGo search result",
-                        'url': url,
-                        'source': 'DuckDuckGo (HTML)'
-                    })
-
-                except Exception as e:
-                    self.logger.debug(f"Error parsing result: {e}")
+            parsed_results: List[Dict[str, str]] = []
+            for element in containers[:max_results]:
+                title_elem = (
+                    element.find("a", class_="result__a")
+                    or element.select_one("h2 a")
+                    or element.select_one("a[data-testid='result-title-a']")
+                )
+                if not title_elem:
                     continue
 
-            self.logger.info(f"Found {len(results)} results from DuckDuckGo HTML")
+                title = title_elem.get_text(" ", strip=True)
+                url = _normalise_url(title_elem.get("href", ""))
 
-        except Exception as e:
-            self.logger.error(f"❌ [DUCKDUCKGO] DuckDuckGo HTML search failed: {e}")
-            import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
+                snippet_elem = (
+                    element.find("a", class_="result__snippet")
+                    or element.find("div", class_="result__snippet")
+                    or element.find("p", class_="result__snippet")
+                    or element.select_one("[data-testid='result-snippet']")
+                )
+                snippet = ""
+                if snippet_elem:
+                    snippet = snippet_elem.get_text(" ", strip=True)[:300]
+
+                if not title or not url:
+                    continue
+
+                parsed_results.append(
+                    {
+                        "title": title,
+                        "snippet": (snippet + "...") if snippet else "DuckDuckGo search result",
+                        "url": url,
+                        "source": "DuckDuckGo (HTML)",
+                    }
+                )
+
+            return parsed_results
+
+        results: List[Dict[str, str]] = []
+        endpoint = "https://html.duckduckgo.com/html/"
+        params = {"q": query}
+
+        for method in ("get", "post"):
+            try:
+                self.logger.info(f"??? [DUCKDUCKGO] Searching DuckDuckGo HTML via {method.upper()}: {query}")
+                if method == "get":
+                    response = self.session.get(
+                        endpoint, params=params, timeout=self.timeout, verify=self.verify_ssl
+                    )
+                else:
+                    response = self.session.post(
+                        endpoint, data=params, timeout=self.timeout, verify=self.verify_ssl
+                    )
+                response.raise_for_status()
+            except Exception as exc:
+                self.logger.warning(f"??[DUCKDUCKGO] {method.upper()} request failed: {exc}")
+                continue
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            results = _parse_results(soup)
+            if results:
+                self.logger.info(
+                    f"??[DUCKDUCKGO] Found {len(results)} results from DuckDuckGo HTML ({method.upper()})"
+                )
+                break
+
+        if not results and DDGS_AVAILABLE:
+            try:
+                self.logger.info("DuckDuckGo HTML returned no results, trying duckduckgo_search fallback")
+                with DDGS(timeout=self.timeout) as ddgs:  # type: ignore[attr-defined]
+                    api_results = ddgs.text(query, max_results=max_results)
+                for item in api_results:
+                    url = _normalise_url(item.get("href") or item.get("url") or "")
+                    if not url:
+                        continue
+                    title = item.get("title") or item.get("body") or url
+                    snippet = (item.get("body") or "")[:300]
+                    results.append(
+                        {
+                            "title": title,
+                            "snippet": snippet + "..." if snippet else "DuckDuckGo search result",
+                            "url": url,
+                            "source": "DuckDuckGo (API)",
+                        }
+                    )
+                if results:
+                    self.logger.info(
+                        f"??[DUCKDUCKGO] duckduckgo_search fallback returned {len(results)} results"
+                    )
+            except Exception as exc:  # pragma: no cover - network fallback
+                self.logger.error(f"??[DUCKDUCKGO] duckduckgo_search fallback failed: {exc}")
 
         return results
 
