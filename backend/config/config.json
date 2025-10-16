@@ -41,6 +41,7 @@
   },
   "web_search": {
     "enabled": true,
+    "use_typescript_search": true,
     "default_provider": "duckduckgo",
     "search_method": "duckduckgo",
     "disable_fallbacks": true,

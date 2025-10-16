@@ -13,9 +13,9 @@ The repository is now split into two top-level domains:
 
 `server.py` remains at the repository root and simply boots the backend app via `backend.app.create_app`.
 
-### Page Assist Web Search Integration
+### Page Assist TypeScript Web Search Integration 🚀
 
-- **Version**: 2025-10-16 (v2.0.1)
+- **Version**: 2025-10-16 (v2.1.0 - TypeScript Native)
 - **Change**: Integrated Page Assist-inspired web search providers with API-based search engines
   - Added **Brave Search API** provider (`brave_api.py`) - requires API key
   - Added **Tavily Search API** provider (`tavily_api.py`) - includes AI-generated answers
@@ -60,6 +60,34 @@ The repository is now split into two top-level domains:
 - Brave API: https://brave.com/search/api/
 - Tavily API: https://tavily.com/
 - Exa API: https://exa.ai/
+
+**TypeScript Bridge (New!):**
+- ✅ **Page Assist 원본 코드를 TypeScript로 그대로 사용**
+  - Python이 아닌 **Node.js로 실제 검색 실행** (`websearch_ts/search.js`)
+  - Page Assist의 Google, DuckDuckGo, Brave API, Tavily API, Exa API 코드 100% 그대로
+  - Python에서 subprocess로 Node.js 호출 (`typescript_bridge.py`)
+  - JSON으로 결과 주고받기
+  
+**설정:**
+```json
+{
+  "web_search": {
+    "use_typescript_search": true,  // TypeScript 사용 (기본값)
+    "default_provider": "duckduckgo"
+  }
+}
+```
+
+**요구사항:**
+- Node.js 설치 필요 (https://nodejs.org/)
+- 첫 실행 시 자동으로 `npm install` 실행
+
+**작동 방식:**
+1. Python API 호출 → SearchManager
+2. SearchManager → TypeScriptSearchBridge
+3. TypeScriptSearchBridge → `node search.js` 실행
+4. Node.js가 Page Assist 원본 코드로 검색
+5. JSON 결과 반환 → Python
 
 **Bug Fixes:**
 - Fixed `AttributeError: 'WebSearchFeature' object has no attribute 'search_and_chat'`

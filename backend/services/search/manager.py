@@ -21,6 +21,7 @@ from .providers import (
 )
 from .result_filter import ResultFilter
 from .settings import SearchSettings
+from .typescript_bridge import TypeScriptSearchBridge
 from .types import SearchExecution, SearchResult
 from .utils import (
     choose_relevant_snippet,
@@ -47,6 +48,19 @@ class SearchManager:
         self.cache = SearchCache(cache_config)
         analytics_config = config.get('analytics', {}) if config else {}
         self.analytics = SearchAnalytics(analytics_config)
+        
+        # TypeScript bridge for Page Assist original code
+        self.use_typescript = config.get('use_typescript_search', True) if config else True
+        if self.use_typescript:
+            try:
+                self.ts_bridge = TypeScriptSearchBridge(config or {})
+                self.logger.info("✅ TypeScript search bridge initialized (Page Assist 원본)")
+            except Exception as e:
+                self.logger.warning(f"TypeScript bridge failed to initialize: {e}")
+                self.ts_bridge = None
+                self.use_typescript = False
+        else:
+            self.ts_bridge = None
 
     def _register_providers(self) -> None:
         """Register all available search providers based on configuration."""
@@ -189,7 +203,31 @@ class SearchManager:
             self.analytics.record_search(execution, time.time() - start_time, cache_hit=True)
             return execution
 
-        results = provider.search(query, max_results)
+        # Use TypeScript bridge if available (Page Assist 원본 코드)
+        if self.use_typescript and self.ts_bridge and provider.name in ["google", "duckduckgo", "brave_api", "tavily_api", "exa_api"]:
+            try:
+                self.logger.info(f"🚀 Using TypeScript search (Page Assist 원본): {provider.name}")
+                ts_result = self.ts_bridge.search(query, provider.name, max_results)
+                
+                if ts_result.get("success"):
+                    # Convert to SearchResult objects
+                    results = []
+                    for item in ts_result.get("results", []):
+                        results.append(SearchResult(
+                            title=item.get("title", ""),
+                            url=item.get("url", ""),
+                            snippet=item.get("snippet", ""),
+                            source=f"{item.get('source', provider.name)} (TypeScript)"
+                        ))
+                    self.logger.info(f"✅ TypeScript search returned {len(results)} results")
+                else:
+                    self.logger.warning(f"TypeScript search failed: {ts_result.get('error')}, falling back to Python")
+                    results = provider.search(query, max_results)
+            except Exception as e:
+                self.logger.error(f"TypeScript search error: {e}, falling back to Python")
+                results = provider.search(query, max_results)
+        else:
+            results = provider.search(query, max_results)
         if (
             not self.settings.disable_fallbacks
             and not results
