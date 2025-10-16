@@ -1175,7 +1175,7 @@
         }
 
         async function sendNormalMessage(message) {
-            const response = await fetch('/api/chat', {
+            const response = await fetch('/api/chat/messages', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1191,11 +1191,15 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            return await response.json();
+            const result = await response.json();
+            return {
+                response: result.message,
+                session_id: result.session_id
+            };
         }
 
         async function sendRagMessage(message) {
-            const response = await fetch('/api/chat/rag', {
+            const response = await fetch('/api/chat/messages', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1203,7 +1207,8 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    session_id: sessionId
+                    session_id: sessionId,
+                    use_rag: true
                 })
             });
 
@@ -1211,28 +1216,16 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            return await response.json();
+            const result = await response.json();
+            return {
+                response: result.message,
+                session_id: result.session_id
+            };
         }
 
         async function sendDocumentMessage(message) {
             // For document analysis, use RAG chat which searches the knowledge base
-            const response = await fetch('/api/chat/rag', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`
-                },
-                body: JSON.stringify({
-                    message: message,
-                    session_id: sessionId
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            return await response.json();
+            return await sendRagMessage(message);
         }
 
         async function sendFileMessage(message) {
@@ -1260,31 +1253,55 @@
         }
 
         async function sendSearchMessage(message) {
-            const response = await fetch('/api/chat/web-search', {
+            // First perform the web search
+            const searchResponse = await fetch('/api/search/web', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${userToken}`
                 },
                 body: JSON.stringify({
-                    message: message,
+                    query: message,
+                    max_results: 5
+                })
+            });
+
+            if (!searchResponse.ok) {
+                throw new Error(`Search error! status: ${searchResponse.status}`);
+            }
+
+            const searchResult = await searchResponse.json();
+
+            // Display search results in context
+            if (searchResult.results && searchResult.results.length > 0) {
+                displaySearchContext(message, [message], message, searchResult.results);
+            }
+
+            // Now send to LLM with search results as context
+            const contextMessage = `Based on these search results:\n${JSON.stringify(searchResult.results, null, 2)}\n\nUser question: ${message}`;
+
+            const chatResponse = await fetch('/api/chat/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    message: contextMessage,
                     session_id: sessionId
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!chatResponse.ok) {
+                throw new Error(`Chat error! status: ${chatResponse.status}`);
             }
 
-            const result = await response.json();
-            
-            // Get and display search context if available
-            if (result.keyword_extraction_used && result.optimized_queries) {
-                // Use search results from the response instead of making another API call
-                displaySearchContext(message, result.optimized_queries, result.successful_query, result.search_results || []);
-            }
-
-            return result;
+            const chatResult = await chatResponse.json();
+            return {
+                response: chatResult.message,
+                session_id: chatResult.session_id,
+                search_results: searchResult.results
+            };
         }
 
         // Enhanced search is now handled by the main web search functionality
@@ -1548,7 +1565,7 @@
                 }
                 
                 const llmStatusIcon = health.status === 'healthy' ? '?? : 
-                                    health.status === 'ollama_unreachable' ? '?”¸' : '??;
+                                    health.status === 'ollama_unreachable' ? '?ï¿½ï¿½' : '??;
                 const llmStatusText = health.status === 'ollama_unreachable' ? 'Ollama Unreachable' : 
                                     health.status === 'error' ? 'Error' : 'Ready';
                 

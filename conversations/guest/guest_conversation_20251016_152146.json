@@ -1,0 +1,27 @@
+{
+  "id": "guest_conversation_20251016_152146",
+  "user_id": "guest",
+  "created_at": "2025-10-16T15:21:46.043289",
+  "last_activity": "2025-10-16T15:21:50.120880",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?",
+      "timestamp": "2025-10-16T15:21:46.043767",
+      "metadata": {}
+    },
+    {
+      "role": "assistant",
+      "content": "Error communicating with Ollama: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/chat (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000025BE385F9D0>: Failed to establish a new connection: [WinError 10061] 대상 컴퓨터에서 연결을 거부했으므로 연결하지 못했습니다'))",
+      "timestamp": "2025-10-16T15:21:50.120873",
+      "metadata": {
+        "source": "llm"
+      }
+    }
+  ],
+  "metadata": {
+    "title": "Hello, who are you?",
+    "model": "llama3.2",
+    "total_messages": 2
+  }
+}

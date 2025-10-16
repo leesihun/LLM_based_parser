@@ -7,5 +7,41 @@
     "last_activity": "2025-10-16T13:07:31.746379",
     "ip_address": null,
     "user_agent": null
+  },
+  "v637wRP83M_Pc3FdO140vIx1eFnAtPFqYyfdBWPY3iE": {
+    "user_id": "sudo",
+    "username": "admin",
+    "role": "admin",
+    "created_at": "2025-10-16T15:17:01.498660",
+    "last_activity": "2025-10-16T15:17:01.498668",
+    "ip_address": null,
+    "user_agent": null
+  },
+  "9D8rymtbX-QyeZRcFbc4UVY9kbxbJjbO22QQjeIyUA0": {
+    "user_id": "guest",
+    "username": "guest",
+    "role": "user",
+    "created_at": "2025-10-16T15:17:35.122305",
+    "last_activity": "2025-10-16T15:17:35.122310",
+    "ip_address": null,
+    "user_agent": null
+  },
+  "WPi9tDwTIAxuXDJMqeHnqRUPCdUpv1k2ZgM-PwgqV0w": {
+    "user_id": "guest",
+    "username": "guest",
+    "role": "user",
+    "created_at": "2025-10-16T15:18:04.615697",
+    "last_activity": "2025-10-16T15:18:11.677128",
+    "ip_address": null,
+    "user_agent": null
+  },
+  "uj7oUnzDs0lhVDIHXOlFqzZsZEzOZ3yeZkDQm10j8pY": {
+    "user_id": "guest",
+    "username": "guest",
+    "role": "user",
+    "created_at": "2025-10-16T15:21:44.001120",
+    "last_activity": "2025-10-16T15:21:46.042456",
+    "ip_address": null,
+    "user_agent": null
   }
 }
