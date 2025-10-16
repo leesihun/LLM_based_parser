@@ -53,12 +53,18 @@ class SearXNGSearcher:
 
         # Ensure SearXNG is ready on initialization if auto_restart enabled
         if self.auto_restart and self.manager:
-            self.logger.info("Auto-restart enabled, ensuring SearXNG is ready...")
-            ready_result = self.manager.ensure_searxng_ready(max_retries=1)
-            if ready_result['success']:
-                self.logger.info("SearXNG is ready")
-            else:
-                self.logger.warning(f"SearXNG may not be ready: {ready_result.get('error')}")
+            try:
+                self.logger.info("🔧 [SEARXNG SEARCHER] Auto-restart enabled, ensuring SearXNG is ready...")
+                ready_result = self.manager.ensure_searxng_ready(max_retries=1)
+                if ready_result['success']:
+                    self.logger.info("✅ [SEARXNG SEARCHER] SearXNG is ready")
+                else:
+                    self.logger.warning(f"⚠️ [SEARXNG SEARCHER] SearXNG may not be ready: {ready_result.get('error')}")
+            except Exception as e:
+                self.logger.error(f"❌ [SEARXNG SEARCHER] Failed to ensure SearXNG ready during init: {e}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                self.logger.warning("⚠️ [SEARXNG SEARCHER] Continuing without auto-restart verification...")
 
     def search(self, query: str, max_results: Optional[int] = None) -> List[Dict[str, str]]:
         """
@@ -71,7 +77,10 @@ class SearXNGSearcher:
         Returns:
             List of search results with title, snippet, and URL
         """
+        self.logger.info(f"🔎 [SEARXNG SEARCHER] Starting search for: {query}")
+
         if not query or not query.strip():
+            self.logger.warning("⚠️ [SEARXNG SEARCHER] Empty query provided")
             return []
 
         max_results = max_results or self.max_results
@@ -82,7 +91,9 @@ class SearXNGSearcher:
 
         for attempt in range(max_attempts):
             try:
+                self.logger.info(f"🚀 [SEARXNG SEARCHER] Attempt {attempt + 1}/{max_attempts}: Calling _perform_search()...")
                 results = self._perform_search(query, max_results)
+                self.logger.info(f"✅ [SEARXNG SEARCHER] _perform_search() returned {len(results) if results else 0} results")
 
                 # If successful, return results
                 if results:
@@ -102,7 +113,9 @@ class SearXNGSearcher:
                     return []
 
             except Exception as e:
-                self.logger.error(f"Search attempt {attempt + 1} failed: {e}")
+                self.logger.error(f"❌ [SEARXNG SEARCHER] Search attempt {attempt + 1} failed: {e}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
 
                 # Try restart on exception if enabled and this is first attempt
                 if attempt == 0 and self.restart_on_failure and self.manager:
@@ -163,7 +176,7 @@ class SearXNGSearcher:
             Tuple of (success: bool, results: List)
         """
         try:
-            self.logger.debug(f"Trying connection method: {method}")
+            self.logger.info(f"🌐 [SEARXNG SEARCHER] Trying connection method: {method}")
 
             if method == 'wsl':
                 return self._search_via_wsl(query, max_results)

@@ -157,13 +157,28 @@ class WebSearchFeature:
 
             for i, search_query in enumerate(search_queries):
                 self.logger.info(
-                    "Searching web with query %s/%s via manager: %s",
+                    "🔍 [SEARCH MANAGER] Searching web with query %s/%s via manager: %s",
                     i + 1,
                     len(search_queries),
                     search_query,
                 )
                 attempted_queries.append(search_query)
-                execution = self.search_manager.search(search_query, max_results)
+
+                try:
+                    self.logger.info("🚀 [SEARCH MANAGER] Calling SearchManager.search()...")
+                    execution = self.search_manager.search(search_query, max_results)
+                    self.logger.info(f"✅ [SEARCH MANAGER] SearchManager returned: success={execution.success}, provider={execution.provider}")
+                except Exception as e:
+                    self.logger.error(f"❌ [SEARCH MANAGER] SearchManager.search() failed with exception: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
+                    execution = SearchExecution(
+                        query=search_query,
+                        provider="error",
+                        success=False,
+                        error=str(e)
+                    )
+
                 execution_history.append(execution)
                 last_query_attempted = search_query
 
@@ -173,7 +188,7 @@ class WebSearchFeature:
                     break
                 else:
                     self.logger.warning(
-                        "No results for query '%s' (provider=%s, error=%s)",
+                        "⚠️ [SEARCH MANAGER] No results for query '%s' (provider=%s, error=%s)",
                         search_query,
                         execution.provider,
                         execution.error,
@@ -182,18 +197,36 @@ class WebSearchFeature:
             fallback_query = last_query_attempted or (search_queries[-1] if search_queries else query)
 
             if (not successful_execution or not successful_execution.results) and fallback_query:
-                searxng_execution = self._run_fallback_searxng(fallback_query, max_results or 5)
-                if searxng_execution and searxng_execution.results:
-                    successful_execution = searxng_execution
-                    successful_query = fallback_query
-                    attempted_queries.append(f"{fallback_query} [searxng]")
+                self.logger.info("🔄 [FALLBACK] Attempting SearXNG fallback...")
+                try:
+                    searxng_execution = self._run_fallback_searxng(fallback_query, max_results or 5)
+                    if searxng_execution and searxng_execution.results:
+                        self.logger.info(f"✅ [FALLBACK] SearXNG fallback succeeded with {len(searxng_execution.results)} results")
+                        successful_execution = searxng_execution
+                        successful_query = fallback_query
+                        attempted_queries.append(f"{fallback_query} [searxng]")
+                    else:
+                        self.logger.warning("⚠️ [FALLBACK] SearXNG fallback returned no results")
+                except Exception as e:
+                    self.logger.error(f"❌ [FALLBACK] SearXNG fallback failed with exception: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
 
             if (not successful_execution or not successful_execution.results) and fallback_query:
-                selenium_execution = self._run_fallback_selenium(fallback_query, max_results or 5)
-                if selenium_execution and selenium_execution.results:
-                    successful_execution = selenium_execution
-                    successful_query = fallback_query
-                    attempted_queries.append(f"{fallback_query} [selenium]")
+                self.logger.info("🔄 [FALLBACK] Attempting Selenium fallback...")
+                try:
+                    selenium_execution = self._run_fallback_selenium(fallback_query, max_results or 5)
+                    if selenium_execution and selenium_execution.results:
+                        self.logger.info(f"✅ [FALLBACK] Selenium fallback succeeded with {len(selenium_execution.results)} results")
+                        successful_execution = selenium_execution
+                        successful_query = fallback_query
+                        attempted_queries.append(f"{fallback_query} [selenium]")
+                    else:
+                        self.logger.warning("⚠️ [FALLBACK] Selenium fallback returned no results")
+                except Exception as e:
+                    self.logger.error(f"❌ [FALLBACK] Selenium fallback failed with exception: {e}")
+                    import traceback
+                    self.logger.error(f"Traceback: {traceback.format_exc()}")
 
             if not successful_execution or not successful_execution.results:
                 last_error = (

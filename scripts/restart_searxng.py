@@ -42,6 +42,8 @@ class SearXNGManager:
                 restart_cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=30
             )
 
@@ -101,6 +103,8 @@ class SearXNGManager:
                 status_cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=10
             )
 
@@ -144,6 +148,8 @@ class SearXNGManager:
                 test_cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=timeout + 2
             )
 

@@ -36,11 +36,25 @@ class SearxngProvider(SearchProvider):
         return self._searcher
 
     def search(self, query: str, max_results: int) -> List[SearchResult]:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🌐 [SEARXNG PROVIDER] Starting SearXNG search for: {query}")
+
         searcher = self._ensure_searcher()
         if searcher is None:
+            logger.error("❌ [SEARXNG PROVIDER] SearXNG searcher is None")
             return []
 
-        raw_results = searcher.search(query, max_results)
+        try:
+            logger.info("🚀 [SEARXNG PROVIDER] Calling SearXNGSearcher.search()...")
+            raw_results = searcher.search(query, max_results)
+            logger.info(f"✅ [SEARXNG PROVIDER] SearXNGSearcher returned {len(raw_results) if raw_results else 0} results")
+        except Exception as e:
+            logger.error(f"❌ [SEARXNG PROVIDER] SearXNGSearcher.search() failed: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return []
+
         results: List[SearchResult] = []
         for item in raw_results[:max_results]:
             results.append(
