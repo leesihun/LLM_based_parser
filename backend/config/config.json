@@ -2,7 +2,7 @@
   "ollama": {
     "host": "http://localhost:11434",
     "model": "gemma3:12b",
-    "timeout": 60000, 
+    "timeout": 60000,
     "num_ctx": 8192,
     "temperature": 0.7,
     "top_p": 0.9,
@@ -28,109 +28,104 @@
     ],
     "rag_mode": "You have access to the team's knowledge base. Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so and provide general guidance if possible.",
     "document_mode": "You are analyzing a document for the user. Provide detailed insights, summaries, and answer questions based on the document content provided. If the document is not related to the user's question, say so and provide general guidance if possible.",
-          "file_mode": "You are analyzing a specific file for the user. Examine the file content carefully and provide detailed analysis, insights, or answers to the user's questions about the file. If the file is not related to the user's question, say so and provide general guidance if possible.",
-      "search_mode": [
-        "You have access to current internet search results.",
-        "Use the provided search results to answer questions with the latest information.",
-        "First, of the given context, provide a summary of the most important information.",
-        "If you think the given context is not relevant to the user's question, say so and provide general guidance if possible.",
-        "Always cite the sources from the search results when providing information. Leave the sources at the end of the response.",
-        "If the search results don't contain relevant information, say so and provide general guidance if possible.",
-        "Based on the given context, provide one clear answer to the user's question."
+    "file_mode": "You are analyzing a specific file for the user. Examine the file content carefully and provide detailed analysis, insights, or answers to the user's questions about the file. If the file is not related to the user's question, say so and provide general guidance if possible.",
+    "search_mode": [
+      "You have access to current internet search results.",
+      "Use the provided search results to answer questions with the latest information.",
+      "First, of the given context, provide a summary of the most important information.",
+      "If you think the given context is not relevant to the user's question, say so and provide general guidance if possible.",
+      "Always cite the sources from the search results when providing information. Leave the sources at the end of the response.",
+      "If the search results don't contain relevant information, say so and provide general guidance if possible.",
+      "Based on the given context, provide one clear answer to the user's question."
+    ]
+  },
+  "web_search": {
+    "enabled": true,
+    "default_provider": "duckduckgo",
+    "search_method": "duckduckgo",
+    "simple_mode": false,
+    "visit_specific_website": true,
+    "searxng_url": "http://192.168.219.113:8080",
+    "searxng_json_mode": false,
+    "auto_restart_searxng": false,
+    "restart_on_search_failure": false,
+    "search_engine": "bing",
+    "fallback_to_html": false,
+    "fallback_to_google": false,
+    "use_keyword_extraction": true,
+    "result_filtering": {
+      "enabled": true,
+      "enable_duplicate_detection": true,
+      "enable_relevance_scoring": true,
+      "enable_domain_filtering": false,
+      "min_content_length": 100,
+      "max_content_length": 5000,
+      "min_title_length": 5,
+      "max_title_length": 200,
+      "query_weight": 2.0,
+      "title_weight": 1.5,
+      "content_weight": 1.0,
+      "allowed_domains": [],
+      "blocked_domains": [
+        "spam-domain.com",
+        "malicious-site.net"
       ]
     },
-    "web_search": {
+    "total_results": 5,
+    "max_results": 5,
+    "timeout": 100,
+    "delay": 10,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "cache": {
       "enabled": true,
-      "default_provider": "selenium",
-      "search_method": "selenium",
-      "simple_mode": false,
-      "visit_specific_website": true,
-      "searxng_url": "http://192.168.219.113:8080",
-      "searxng_json_mode": false,
-      "auto_restart_searxng": false,
-      "restart_on_search_failure": false,
-      "search_engine": "bing",
-      "fallback_to_html": false,
-      "fallback_to_google": false,
-      "use_keyword_extraction": true,
-      "result_filtering": {
-        "enabled": true,
-        "enable_duplicate_detection": true,
-        "enable_relevance_scoring": true,
-        "enable_domain_filtering": false,
-        "min_content_length": 100,
-        "max_content_length": 5000,
-        "min_title_length": 5,
-        "max_title_length": 200,
-        "query_weight": 2.0,
-        "title_weight": 1.5,
-        "content_weight": 1.0,
-        "allowed_domains": [],
-        "blocked_domains": [
-          "spam-domain.com",
-          "malicious-site.net"
-        ]
-      },
-      "total_results": 5,
-      "max_results": 5,
-      "timeout": 100,
-      "delay": 10,
-      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      "cache": {
-        "enabled": true,
-        "enable_redis": false,
-        "default_ttl": 3600,
-        "max_cache_size": 1000,
-        "redis": {
-          "host": "localhost",
-          "port": 6379,
-          "db": 0,
-          "password": null
-        }
-      },
-      "cache_ttl": 3600,
-      "analytics": {
-        "enabled": true,
-        "max_history_size": 1000,
-        "retention_days": 7,
-        "enable_detailed_logging": true
-      },
-      "selenium": {
-        "use_debug_chrome": false,
-        "debug_port": 9222,
-        "user_data_dir": "./chrometemp",
-        "headless": true,
-        "browser_preference": ["chrome", "firefox"]
-      },
-      "keyword_extraction": {
-        "enabled": true,
-        "use_llm": true,
-        "query_expansion": false,
-        "max_keywords": 4,
-        "min_keyword_length": 1,
-        "llm_extraction": {
-          "system_prompt": "You are a keyword extraction specialist. Your job is to extract 1-4 specific, searchable keywords from user queries.\n\nOUTPUT FORMAT: Return ONLY comma-separated keywords. NO labels, NO prefixes, NO extra text.\n\nFocus on:\n1. Technical terms and specific concepts\n2. Proper nouns (names, places, technologies)\n3. Key descriptive words\n4. Avoid generic words like 'help', 'how', 'what', 'the', 'and'\n\nOrder keywords by importance (most important first). Only extract what is actually present in the user's query.\n\nExamples:\n\nUser: 'How do I install Python on Windows?'\nPython installation, Windows, setup\n\nUser: 'What are the latest developments in artificial intelligence?'\nartificial intelligence, AI developments, machine learning trends\n\nUser: 'Help me debug my React application'\nReact debugging, JavaScript debugging, React troubleshooting",
-          "temperature": 0,
-          "max_tokens": 200,
-          "fallback_to_original": true
-        }
-      },
-      "providers": {
-        "searxng": {
-          "enabled": false
-        },
-        "duckduckgo": {
-          "enabled": true
-        },
-        "brave": {
-          "enabled": false
-        },
-        "bing": {
-          "enabled": true
-        }
-      },
-      "bing_api_key": ""
+      "enable_redis": false,
+      "default_ttl": 3600,
+      "max_cache_size": 1000,
+      "redis": {
+        "host": "localhost",
+        "port": 6379,
+        "db": 0,
+        "password": null
+      }
     },
+    "cache_ttl": 3600,
+    "analytics": {
+      "enabled": true,
+      "max_history_size": 1000,
+      "retention_days": 7,
+      "enable_detailed_logging": true
+    },
+    "selenium": {
+      "use_debug_chrome": false,
+      "debug_port": 9222,
+      "user_data_dir": "./chrometemp",
+      "headless": true,
+      "browser_preference": [
+        "chrome",
+        "firefox"
+      ]
+    },
+    "keyword_extraction": {
+      "enabled": true,
+      "use_llm": true,
+      "query_expansion": false,
+      "max_keywords": 4,
+      "min_keyword_length": 1,
+      "llm_extraction": {
+        "system_prompt": "You are a keyword extraction specialist. Your job is to extract 1-4 specific, searchable keywords from user queries.\n\nOUTPUT FORMAT: Return ONLY comma-separated keywords. NO labels, NO prefixes, NO extra text.\n\nFocus on:\n1. Technical terms and specific concepts\n2. Proper nouns (names, places, technologies)\n3. Key descriptive words\n4. Avoid generic words like 'help', 'how', 'what', 'the', 'and'\n\nOrder keywords by importance (most important first). Only extract what is actually present in the user's query.\n\nExamples:\n\nUser: 'How do I install Python on Windows?'\nPython installation, Windows, setup\n\nUser: 'What are the latest developments in artificial intelligence?'\nartificial intelligence, AI developments, machine learning trends\n\nUser: 'Help me debug my React application'\nReact debugging, JavaScript debugging, React troubleshooting",
+        "temperature": 0,
+        "max_tokens": 200,
+        "fallback_to_original": true
+      }
+    },
+    "providers": {
+      "searxng": { "enabled": false },
+      "duckduckgo": { "enabled": true },
+      "brave": { "enabled": false },
+      "bing": { "enabled": true }
+    },
+    "bing_api_key": ""
+  },
   "rag": {
     "embedding": {
       "provider": "ollama",
