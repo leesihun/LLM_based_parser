@@ -36,9 +36,22 @@ def build_auth_decorators(user_manager: UserManager):
     def require_admin(func: F) -> F:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            user = getattr(request, "user", None)
-            if not user or user.get("role") != "admin":
+            # First authenticate the user (same as require_auth)
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                raise AuthenticationError("Authentication required")
+
+            token = auth_header.split(" ", 1)[1]
+            session_data = user_manager.validate_session(token)
+            if not session_data:
+                raise AuthenticationError("Invalid or expired session")
+
+            request.user = session_data  # type: ignore[attr-defined]
+
+            # Then check if user is admin
+            if session_data.get("role") != "admin":
                 raise AuthorizationError("Admin privileges required")
+
             return func(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
