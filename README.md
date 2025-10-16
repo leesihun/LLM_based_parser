@@ -15,7 +15,7 @@ The repository is now split into two top-level domains:
 
 ### Page Assist Web Search Integration
 
-- **Version**: 2025-10-16 (v2.0.0)
+- **Version**: 2025-10-16 (v2.0.1)
 - **Change**: Integrated Page Assist-inspired web search providers with API-based search engines
   - Added **Brave Search API** provider (`brave_api.py`) - requires API key
   - Added **Tavily Search API** provider (`tavily_api.py`) - includes AI-generated answers
@@ -60,6 +60,12 @@ The repository is now split into two top-level domains:
 - Brave API: https://brave.com/search/api/
 - Tavily API: https://tavily.com/
 - Exa API: https://exa.ai/
+
+**Bug Fixes:**
+- Fixed `AttributeError: 'WebSearchFeature' object has no attribute 'search_and_chat'`
+  - Added `search_and_chat()` method that performs web search and generates LLM-powered responses
+  - Method integrates with conversation memory and supports all new search providers
+  - Properly handles search failures with graceful error messages
 
 ### Web Search Provider (lite backend) fix
 

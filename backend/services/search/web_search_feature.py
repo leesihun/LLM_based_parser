@@ -24,6 +24,7 @@ class WebSearchFeature:
         """Initialize web search feature"""
         self.config = config or {}
         self.logger = logging.getLogger(__name__)
+        self.llm_client = llm_client  # Store LLM client for search_and_chat
 
         # Adopt modular search manager mirroring Page Assist behaviour
         self.search_manager = SearchManager(self.config)
@@ -492,6 +493,91 @@ class WebSearchFeature:
         if result.get('success'):
             return result.get('formatted_context', '')
         return f"Web search failed for '{query}': {result.get('error', 'Unknown error')}"
+
+    def search_and_chat(self, query: str, session_id: Optional[str] = None, 
+                       max_results: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Perform web search and generate LLM response based on search results.
+        
+        Args:
+            query: User's search query
+            session_id: Optional session ID for conversation context
+            max_results: Maximum number of search results
+            
+        Returns:
+            Dictionary containing response and search metadata
+        """
+        try:
+            # Perform web search
+            search_result = self.search_web(query, max_results, format_for_llm=True)
+            
+            if not search_result.get('success'):
+                return {
+                    'response': f"I apologize, but I couldn't perform a web search at this time. Error: {search_result.get('error', 'Unknown error')}",
+                    'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
+                    'optimized_queries': search_result.get('optimized_queries', []),
+                    'successful_query': search_result.get('successful_query', query),
+                    'search_results': []
+                }
+            
+            # Get search context
+            search_context = search_result.get('formatted_context', '')
+            
+            # Generate LLM response using search context
+            if self.llm_client:
+                try:
+                    # Build system prompt with search mode instructions
+                    system_config = self.config.get('system_prompt', {})
+                    universal_prompts = system_config.get('universal', [])
+                    search_mode_prompts = system_config.get('search_mode', [])
+                    
+                    # Combine prompts
+                    if isinstance(search_mode_prompts, list):
+                        system_prompt = '\n'.join(universal_prompts + search_mode_prompts)
+                    else:
+                        system_prompt = '\n'.join(universal_prompts) + '\n' + search_mode_prompts
+                    
+                    # Prepare user message with search context
+                    user_message = f"""User Question: {query}
+
+Search Results:
+{search_context}
+
+Please provide a comprehensive answer based on the search results above."""
+                    
+                    # Get LLM response
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message}
+                    ]
+                    
+                    llm_response = self.llm_client.chat(messages)
+                    response_text = llm_response.get('response', '')
+                    
+                except Exception as e:
+                    self.logger.error(f"Error generating LLM response: {e}")
+                    response_text = f"Based on the search results:\n\n{search_context[:500]}..."
+            else:
+                # No LLM client available, return formatted search results
+                response_text = f"Search results for '{query}':\n\n{search_context}"
+            
+            return {
+                'response': response_text,
+                'keyword_extraction_used': search_result.get('keyword_extraction_used', False),
+                'optimized_queries': search_result.get('optimized_queries', []),
+                'successful_query': search_result.get('successful_query', query),
+                'search_results': search_result.get('results', [])
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in search_and_chat: {e}")
+            return {
+                'response': f"I apologize, but an error occurred while processing your request: {str(e)}",
+                'keyword_extraction_used': False,
+                'optimized_queries': [],
+                'successful_query': query,
+                'search_results': []
+            }
 
     def close(self):
         return
