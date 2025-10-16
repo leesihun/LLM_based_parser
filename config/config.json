@@ -41,8 +41,8 @@
     },
     "web_search": {
       "enabled": true,
-      "default_provider": "searxng",
-      "search_method": "searxng",
+      "default_provider": "duckduckgo",
+      "search_method": "duckduckgo",
       "simple_mode": false,
       "visit_specific_website": true,
       "searxng_url": "http://192.168.219.113:8080",
@@ -80,13 +80,13 @@
       },
       "providers": {
         "searxng": {
-          "enabled": true
+          "enabled": false
         },
         "duckduckgo": {
           "enabled": true
         },
         "brave": {
-          "enabled": true
+          "enabled": false
         }
       }
     },

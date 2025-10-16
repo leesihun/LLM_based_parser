@@ -198,6 +198,8 @@ class SearXNGSearcher:
             query_encoded = parse.quote_plus(query)
             curl_cmd_str = f"curl -s --max-time {int(self.timeout)} 'http://localhost:8080/search?q={query_encoded}&format=json&language=en&safesearch=0'"
 
+            self.logger.info(f"🌐 [WSL] Executing WSL curl command...")
+
             result = subprocess.run(
                 ['wsl', 'bash', '-c', curl_cmd_str],
                 capture_output=True,
@@ -208,13 +210,14 @@ class SearXNGSearcher:
             )
 
             if result.returncode != 0:
-                self.logger.debug(f"WSL curl failed: {result.stderr}")
+                self.logger.error(f"❌ [WSL] WSL curl failed with return code {result.returncode}: {result.stderr}")
                 return False, []
 
+            self.logger.info(f"✅ [WSL] WSL curl succeeded, received {len(result.stdout)} bytes")
             return True, self._parse_searxng_response(result.stdout, max_results)
 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            self.logger.debug(f"WSL method unavailable: {e}")
+            self.logger.error(f"❌ [WSL] WSL method unavailable: {e}")
             return False, []
 
     def _search_via_urllib(self, query: str, max_results: int) -> Tuple[bool, List[Dict[str, str]]]:
@@ -223,6 +226,8 @@ class SearXNGSearcher:
             query_encoded = parse.quote_plus(query)
             url = f"{self.searxng_url}/search?q={query_encoded}&format=json&language=en&safesearch=0"
 
+            self.logger.info(f"🌐 [URLLIB] Attempting connection to: {url}")
+
             req = urllib_request.Request(
                 url,
                 headers={'User-Agent': 'Mozilla/5.0 (compatible; SearXNG-Client/1.0)'}
@@ -230,10 +235,13 @@ class SearXNGSearcher:
 
             with urllib_request.urlopen(req, timeout=self.timeout) as response:
                 data = response.read().decode('utf-8')
+                self.logger.info(f"✅ [URLLIB] Successfully received {len(data)} bytes")
                 return True, self._parse_searxng_response(data, max_results)
 
         except (error.URLError, error.HTTPError, TimeoutError) as e:
-            self.logger.debug(f"urllib method failed: {e}")
+            self.logger.error(f"❌ [URLLIB] urllib method failed: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False, []
 
     def _search_via_curl(self, query: str, max_results: int) -> Tuple[bool, List[Dict[str, str]]]:
@@ -241,6 +249,8 @@ class SearXNGSearcher:
         try:
             query_encoded = parse.quote_plus(query)
             url = f"{self.searxng_url}/search?q={query_encoded}&format=json&language=en&safesearch=0"
+
+            self.logger.info(f"🌐 [CURL] Executing system curl to: {url}")
 
             result = subprocess.run(
                 ['curl', '-s', '--max-time', str(int(self.timeout)), url],
@@ -252,13 +262,14 @@ class SearXNGSearcher:
             )
 
             if result.returncode != 0:
-                self.logger.debug(f"curl failed: {result.stderr}")
+                self.logger.error(f"❌ [CURL] curl failed with return code {result.returncode}: {result.stderr}")
                 return False, []
 
+            self.logger.info(f"✅ [CURL] curl succeeded, received {len(result.stdout)} bytes")
             return True, self._parse_searxng_response(result.stdout, max_results)
 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            self.logger.debug(f"curl method unavailable: {e}")
+            self.logger.error(f"❌ [CURL] curl method unavailable: {e}")
             return False, []
 
     def _parse_searxng_response(self, response_data: str, max_results: int) -> List[Dict[str, str]]:
