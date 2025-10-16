@@ -29,8 +29,8 @@ class SearxngProvider(SearchProvider):
                 "searxng_url": self._config.searxng.url,
                 "timeout": self._config.request_timeout,
                 "max_results": self._config.total_results,
-                "auto_restart_searxng": True,
-                "restart_on_search_failure": True,
+                "auto_restart_searxng": self._config.auto_restart_searxng,
+                "restart_on_search_failure": self._config.restart_on_failure,
             }
             self._searcher = SearXNGSearcher(searcher_config)
         return self._searcher

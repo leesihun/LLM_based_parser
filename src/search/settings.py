@@ -33,6 +33,8 @@ class SearchSettings:
     visit_specific_website: bool = True
     request_timeout: int = 15
     user_agent: str = DEFAULT_USER_AGENT
+    auto_restart_searxng: bool = False
+    restart_on_failure: bool = False
     searxng: SearxngSettings = field(default_factory=SearxngSettings)
     provider_toggles: Dict[str, ProviderToggle] = field(default_factory=dict)
 
@@ -76,6 +78,8 @@ class SearchSettings:
             visit_specific_website=config.get("visit_specific_website", True),
             request_timeout=config.get("timeout", 15),
             user_agent=config.get("user_agent", DEFAULT_USER_AGENT),
+            auto_restart_searxng=config.get("auto_restart_searxng", False),
+            restart_on_failure=config.get("restart_on_search_failure", False),
             searxng=searxng_settings,
             provider_toggles=toggles,
         )
