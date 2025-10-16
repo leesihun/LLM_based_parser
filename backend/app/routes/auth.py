@@ -45,4 +45,34 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         user = getattr(request, "user", None)
         return jsonify({"user": user})
 
+    @bp.post("/change-password")
+    @ctx.require_auth
+    def change_password():
+        """Change user password."""
+        payload = request.get_json(silent=True) or {}
+        old_password = payload.get("old_password", "")
+        new_password = payload.get("new_password", "")
+
+        if not old_password or not new_password:
+            raise ValidationError("Old password and new password are required")
+
+        # Get current user
+        user = getattr(request, "user", None)
+        if not user:
+            raise AuthenticationError("User not authenticated")
+
+        username = user.get("username")
+
+        # Verify old password
+        user_data = user_manager.authenticate_user(username, old_password)
+        if not user_data:
+            raise AuthenticationError("Current password is incorrect")
+
+        # Update password
+        success = user_manager.change_password(username, old_password, new_password)
+        if not success:
+            raise ValidationError("Failed to change password")
+
+        return jsonify({"success": True, "message": "Password changed successfully"})
+
     return bp
