@@ -52,5 +52,14 @@
     "last_activity": "2025-10-16T15:27:40.962862",
     "ip_address": null,
     "user_agent": null
+  },
+  "Ki-AwE_gIuxtLQVTMH9hi6mMIceODBAR-O8l6tR-J4w": {
+    "user_id": "sudo",
+    "username": "admin",
+    "role": "admin",
+    "created_at": "2025-10-16T15:52:19.761158",
+    "last_activity": "2025-10-16T15:52:27.580700",
+    "ip_address": null,
+    "user_agent": null
   }
 }
