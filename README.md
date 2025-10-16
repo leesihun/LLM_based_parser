@@ -23,7 +23,7 @@ Verification
 
 1. Create venv and install deps:
    ```bash
-   python -m venv .venv && .\.venv\Scripts\activate
+   python -m venv .venv && .\\.venv\\Scripts\\activate
    pip install -r requirements.txt
    ```
 2. Run server:
@@ -40,3 +40,17 @@ Troubleshooting
 
 - If results are empty, ensure internet access and retry; DuckDuckGo HTML is rate-limited occasionally.
 - To re-enable Selenium UI automation, set `web_search.default_provider` back to `selenium` and ensure Chrome/Driver is installed; headless mode is configured under `web_search.selenium`.
+
+### Single-provider mode (PageAssist-style)
+
+- Version: 2025-10-16
+- Change: Added `web_search.disable_fallbacks` (default `true` now in config) to prevent automatic provider fallbacks. The manager and feature honor this flag, so only the selected `default_provider` is used.
+- Impact: Behavior matches a single-provider pipeline similar to PageAssist. To allow auto-fallbacks again, set `disable_fallbacks` to `false`.
+
+Quick check
+```bash
+curl -X POST http://localhost:8000/api/search/web \
+  -H "Content-Type: application/json" -H "Authorization: Bearer <token>" \
+  -d '{"query":"site:python.org decorators","max_results":3}'
+```
+- Expect: `provider` equals the configured `default_provider` only; if blocked, response shows `success:false` without switching providers.

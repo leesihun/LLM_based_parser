@@ -55,6 +55,9 @@ class SearchManager:
         provider = self.providers.get(provider_name)
         if provider:
             return provider
+        # If fallbacks are disabled, do not select any alternative provider
+        if self.settings.disable_fallbacks:
+            return None
         # fallback ordering similar to Page Assist
         for candidate in ("searxng", "duckduckgo", "bing"):
             if candidate in self.providers:
@@ -126,7 +129,11 @@ class SearchManager:
             return execution
 
         results = provider.search(query, max_results)
-        if not results and provider.name != "duckduckgo":
+        if (
+            not self.settings.disable_fallbacks
+            and not results
+            and provider.name != "duckduckgo"
+        ):
             fallback = self.providers.get("duckduckgo")
             if fallback:
                 self.logger.info(

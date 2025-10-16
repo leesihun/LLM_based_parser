@@ -45,6 +45,8 @@ class SearchSettings:
     provider_toggles: Dict[str, ProviderToggle] = field(default_factory=dict)
     result_filtering: Dict = field(default_factory=dict)
     cache_ttl: Optional[int] = None
+    # When true, do not perform any cross-provider fallbacks; use the selected provider only
+    disable_fallbacks: bool = False
 
 
     @classmethod
@@ -100,4 +102,5 @@ class SearchSettings:
             provider_toggles=toggles,
             result_filtering=result_filtering_settings,
             cache_ttl=cache_ttl,
+            disable_fallbacks=config.get("disable_fallbacks", False),
         )

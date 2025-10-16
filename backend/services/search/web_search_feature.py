@@ -189,7 +189,11 @@ class WebSearchFeature:
 
             fallback_query = last_query_attempted or (search_queries[-1] if search_queries else query)
 
-            if (not successful_execution or not successful_execution.results) and fallback_query:
+            if (
+                not self.search_manager.settings.disable_fallbacks
+                and (not successful_execution or not successful_execution.results)
+                and fallback_query
+            ):
                 self.logger.info("?�� [FALLBACK] Attempting SearXNG fallback...")
                 try:
                     searxng_execution = self._run_fallback_searxng(fallback_query, max_results or 5)
@@ -205,7 +209,11 @@ class WebSearchFeature:
                     import traceback
                     self.logger.error(f"Traceback: {traceback.format_exc()}")
 
-            if (not successful_execution or not successful_execution.results) and fallback_query:
+            if (
+                not self.search_manager.settings.disable_fallbacks
+                and (not successful_execution or not successful_execution.results)
+                and fallback_query
+            ):
                 self.logger.info("?�� [FALLBACK] Attempting Selenium fallback...")
                 try:
                     selenium_execution = self._run_fallback_selenium(fallback_query, max_results or 5)
