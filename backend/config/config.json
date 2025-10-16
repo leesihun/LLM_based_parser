@@ -43,7 +43,7 @@
     "enabled": true,
     "default_provider": "duckduckgo",
     "search_method": "duckduckgo",
-    "simple_mode": false,
+    "simple_mode": true,
     "visit_specific_website": true,
     "searxng_url": "http://192.168.219.113:8080",
     "searxng_json_mode": false,
@@ -121,7 +121,7 @@
     "providers": {
       "searxng": { "enabled": false },
       "duckduckgo": { "enabled": true },
-      "brave": { "enabled": false },
+      "brave": { "enabled": true },
       "bing": { "enabled": true }
     },
     "bing_api_key": ""
