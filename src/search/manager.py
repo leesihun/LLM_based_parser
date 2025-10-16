@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Dict, Iterable, List, Optional
 
+from .analytics import SearchAnalytics
+from .cache import SearchCache
 from .content_loader import ContentLoader
-from .providers import DuckDuckGoProvider, SearchProvider, SearxngProvider
+from .providers import BingProvider, DuckDuckGoProvider, SearchProvider, SearxngProvider
+from .result_filter import ResultFilter
 from .settings import SearchSettings
 from .types import SearchExecution, SearchResult
 from .utils import (
@@ -29,6 +33,11 @@ class SearchManager:
             user_agent=self.settings.user_agent,
             timeout=self.settings.request_timeout,
         )
+        self.result_filter = ResultFilter(config)
+        cache_config = config.get('cache', {}) if config else {}
+        self.cache = SearchCache(cache_config)
+        analytics_config = config.get('analytics', {}) if config else {}
+        self.analytics = SearchAnalytics(analytics_config)
 
     def _register_providers(self) -> None:
         searxng_toggle = self.settings.provider_toggles.get("searxng")
@@ -37,6 +46,9 @@ class SearchManager:
         duck_toggle = self.settings.provider_toggles.get("duckduckgo")
         if duck_toggle is None or duck_toggle.enabled:
             self.providers["duckduckgo"] = DuckDuckGoProvider(self.settings)
+        bing_toggle = self.settings.provider_toggles.get("bing")
+        if bing_toggle is None or bing_toggle.enabled:
+            self.providers["bing"] = BingProvider(self.settings)
 
     def _select_provider(self, override: Optional[str] = None) -> Optional[SearchProvider]:
         provider_name = (override or self.settings.default_provider or "").lower()
@@ -44,7 +56,7 @@ class SearchManager:
         if provider:
             return provider
         # fallback ordering similar to Page Assist
-        for candidate in ("searxng", "duckduckgo"):
+        for candidate in ("searxng", "duckduckgo", "bing"):
             if candidate in self.providers:
                 return self.providers[candidate]
         return None
@@ -56,14 +68,17 @@ class SearchManager:
         provider_override: Optional[str] = None,
     ) -> SearchExecution:
         max_results = max_results or self.settings.total_results
+        start_time = time.time()
 
         if not self.settings.enabled:
-            return SearchExecution(
+            execution = SearchExecution(
                 query=query,
                 provider="disabled",
                 success=False,
                 error="Web search is disabled in configuration.",
             )
+            self.analytics.record_search(execution, time.time() - start_time)
+            return execution
 
         website_detection = detect_urls_in_query(query)
         if self.settings.visit_specific_website and website_detection.urls:
@@ -93,6 +108,23 @@ class SearchManager:
                 error="No search providers are available.",
             )
 
+        # Check cache first
+        cached_results = self.cache.get(query, max_results, provider.name)
+        if cached_results:
+            self.logger.info(f"Cache hit for query: {query} (provider: {provider.name})")
+            prompt = self.build_prompt(cached_results)
+            sources = self.build_sources(cached_results)
+            execution = SearchExecution(
+                query=query,
+                provider=f"{provider.name} (cached)",
+                success=True,
+                results=cached_results,
+                prompt=prompt,
+                sources=sources,
+            )
+            self.analytics.record_search(execution, time.time() - start_time, cache_hit=True)
+            return execution
+
         results = provider.search(query, max_results)
         if not results and provider.name != "duckduckgo":
             fallback = self.providers.get("duckduckgo")
@@ -107,12 +139,29 @@ class SearchManager:
         results = results[:max_results]
 
         if not results:
-            return SearchExecution(
+            execution = SearchExecution(
                 query=query,
                 provider=provider.name,
                 success=False,
                 error="No results returned from provider.",
             )
+            self.analytics.record_search(execution, time.time() - start_time)
+            return execution
+
+        # Apply advanced filtering and ranking
+        original_result_count = len(results)
+        results = self.result_filter.filter_and_rank_results(results, query)
+        filtered_count = original_result_count - len(results)
+
+        if not results:
+            execution = SearchExecution(
+                query=query,
+                provider=provider.name,
+                success=False,
+                error="No results remained after filtering.",
+            )
+            self.analytics.record_search(execution, time.time() - start_time, filtered_count=filtered_count)
+            return execution
 
         if self.settings.simple_mode:
             for result in results:
@@ -122,7 +171,13 @@ class SearchManager:
 
         prompt = self.build_prompt(results)
         sources = self.build_sources(results)
-        return SearchExecution(
+
+        # Cache successful results
+        if results:
+            cache_ttl = self.settings.cache_ttl if hasattr(self.settings, 'cache_ttl') else None
+            self.cache.set(query, max_results, provider.name, results, cache_ttl)
+
+        execution = SearchExecution(
             query=query,
             provider=provider.name,
             success=True,
@@ -130,6 +185,8 @@ class SearchManager:
             prompt=prompt,
             sources=sources,
         )
+        self.analytics.record_search(execution, time.time() - start_time, filtered_count=filtered_count)
+        return execution
 
     def enrich_results(self, results: List[SearchResult], query: str) -> None:
         for result in results:
@@ -191,3 +248,24 @@ class SearchManager:
                 }
             )
         return sources
+
+    def get_analytics_report(self) -> Dict[str, Any]:
+        """Get comprehensive analytics report."""
+        return self.analytics.get_performance_report()
+
+    def get_search_stats(self) -> Dict[str, Any]:
+        """Get basic search statistics."""
+        return self.analytics.get_overall_stats()
+
+    def get_top_queries(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get most frequently searched queries."""
+        return self.analytics.get_top_queries(limit)
+
+    def clear_analytics(self) -> None:
+        """Clear all analytics data."""
+        self.analytics.reset_stats()
+        self.logger.info("Search analytics cleared")
+
+    def cleanup_analytics(self) -> None:
+        """Clean up old analytics data."""
+        self.analytics.cleanup_old_data()

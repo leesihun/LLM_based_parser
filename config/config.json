@@ -53,11 +53,48 @@
       "fallback_to_html": false,
       "fallback_to_google": false,
       "use_keyword_extraction": true,
+      "result_filtering": {
+        "enabled": true,
+        "enable_duplicate_detection": true,
+        "enable_relevance_scoring": true,
+        "enable_domain_filtering": false,
+        "min_content_length": 100,
+        "max_content_length": 5000,
+        "min_title_length": 5,
+        "max_title_length": 200,
+        "query_weight": 2.0,
+        "title_weight": 1.5,
+        "content_weight": 1.0,
+        "allowed_domains": [],
+        "blocked_domains": [
+          "spam-domain.com",
+          "malicious-site.net"
+        ]
+      },
       "total_results": 5,
       "max_results": 5,
       "timeout": 100,
       "delay": 10,
       "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      "cache": {
+        "enabled": true,
+        "enable_redis": false,
+        "default_ttl": 3600,
+        "max_cache_size": 1000,
+        "redis": {
+          "host": "localhost",
+          "port": 6379,
+          "db": 0,
+          "password": null
+        }
+      },
+      "cache_ttl": 3600,
+      "analytics": {
+        "enabled": true,
+        "max_history_size": 1000,
+        "retention_days": 7,
+        "enable_detailed_logging": true
+      },
       "selenium": {
         "use_debug_chrome": false,
         "debug_port": 9222,
@@ -87,8 +124,12 @@
         },
         "brave": {
           "enabled": false
+        },
+        "bing": {
+          "enabled": true
         }
-      }
+      },
+      "bing_api_key": ""
     },
   "rag": {
     "embedding": {

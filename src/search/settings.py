@@ -23,6 +23,11 @@ class SearxngSettings:
 
 
 @dataclass
+class BingSettings:
+    api_key: str = ""
+
+
+@dataclass
 class SearchSettings:
     """Normalised search configuration loaded from config.json."""
 
@@ -36,7 +41,10 @@ class SearchSettings:
     auto_restart_searxng: bool = False
     restart_on_failure: bool = False
     searxng: SearxngSettings = field(default_factory=SearxngSettings)
+    bing: BingSettings = field(default_factory=BingSettings)
     provider_toggles: Dict[str, ProviderToggle] = field(default_factory=dict)
+    result_filtering: Dict = field(default_factory=dict)
+    cache_ttl: Optional[int] = None
 
 
     @classmethod
@@ -70,6 +78,13 @@ class SearchSettings:
             json_mode=config.get("searxng_json_mode", False),
         )
 
+        bing_settings = BingSettings(
+            api_key=config.get("bing_api_key", ""),
+        )
+
+        result_filtering_settings = config.get("result_filtering", {})
+        cache_ttl = config.get("cache_ttl")
+
         return cls(
             enabled=config.get("enabled", True),
             default_provider=search_method,
@@ -81,5 +96,8 @@ class SearchSettings:
             auto_restart_searxng=config.get("auto_restart_searxng", False),
             restart_on_failure=config.get("restart_on_search_failure", False),
             searxng=searxng_settings,
+            bing=bing_settings,
             provider_toggles=toggles,
+            result_filtering=result_filtering_settings,
+            cache_ttl=cache_ttl,
         )

@@ -4,6 +4,52 @@ A comprehensive AI-powered assistant with multiple conversation modes, knowledge
 
 ## 📝 Recent Changes
 
+### Version 1.3.0 (October 16, 2025) - Enhanced Web Search System
+**Major Web Search Enhancements:**
+- **Bing Search Provider**: Added full Bing search integration with API support and web scraping fallback
+- **Advanced Result Filtering**: Implemented relevance scoring, duplicate detection, and content quality filtering
+- **Search Result Caching**: Added Redis and in-memory caching with TTL support for faster repeated searches
+- **Search Analytics**: Comprehensive metrics tracking including success rates, response times, and popular queries
+- **Enhanced Configuration**: Expanded search settings with provider toggles, filtering options, and caching parameters
+
+**Technical Improvements:**
+- Modular search architecture with provider abstraction
+- Advanced result ranking based on query relevance and content quality
+- Intelligent cache management with automatic cleanup and size limits
+- Detailed performance analytics with historical trends and error tracking
+- Improved error handling with better fallback mechanisms
+
+**New Configuration Options:**
+```json
+{
+  "web_search": {
+    "providers": {
+      "bing": { "enabled": true },
+      "duckduckgo": { "enabled": true },
+      "searxng": { "enabled": false }
+    },
+    "result_filtering": {
+      "enabled": true,
+      "enable_duplicate_detection": true,
+      "enable_relevance_scoring": true,
+      "min_content_length": 100,
+      "max_content_length": 5000
+    },
+    "cache": {
+      "enabled": true,
+      "enable_redis": false,
+      "default_ttl": 3600,
+      "max_cache_size": 1000
+    },
+    "analytics": {
+      "enabled": true,
+      "max_history_size": 1000,
+      "retention_days": 7
+    }
+  }
+}
+```
+
 ### Version 1.2.3 (October 14, 2025)
 Added: Proxy/SSL diagnostics and hardened HTML providers in `search_api_test.ipynb`
 - New diagnostics cell prints proxy vars, tests connectivity, and shows cert store path.
@@ -429,36 +475,92 @@ LLM_based_parser/
 └── conversations/         # Chat history
 ```
 
-## 🔍 Web Search Features
+## 🔍 Enhanced Web Search Features
 
-### Keyword Extraction Intelligence
-The system uses advanced keyword extraction to improve search quality:
+### Advanced Search Architecture
+The system now features a comprehensive, modular web search architecture with multiple enhancements:
 
+#### 🔧 Multiple Search Providers
+- **Bing Search**: Full API integration with web scraping fallback
+- **DuckDuckGo**: HTML scraping with API fallback support
+- **SearXNG**: Meta-search engine integration (when available)
+- **Brave Search**: Alternative search engine option
+- **Automatic Fallback**: Seamless provider switching on failures
+
+#### 🎯 Intelligent Result Processing
+1. **Advanced Result Filtering**:
+   - Relevance scoring based on query matching
+   - Duplicate content detection and removal
+   - Spam and low-quality content filtering
+   - Domain-based filtering (allow/block lists)
+
+2. **Content Quality Assessment**:
+   - Minimum/maximum content length validation
+   - Title quality checks
+   - URL validity verification
+   - Content relevance scoring
+
+#### ⚡ Performance Optimizations
+- **Smart Caching System**:
+  - In-memory caching with Redis backend support
+  - Configurable TTL (Time To Live) for cache entries
+  - Automatic cache cleanup and size management
+  - Cache hit/miss tracking and analytics
+
+- **Search Analytics**:
+  - Comprehensive performance metrics tracking
+  - Success rate monitoring by provider
+  - Response time analysis and trends
+  - Popular query identification
+  - Error pattern detection and reporting
+
+#### 🧠 Enhanced Keyword Intelligence
 1. **Multiple extraction methods**: TF-IDF, rule-based patterns, LLM-assisted
 2. **Adequacy validation**: Prevents search with generic or insufficient keywords
 3. **Technical term recognition**: Identifies domain-specific terminology
-4. **Query optimization**: Generates optimized search query from extracted keywords
-   - **Note**: Query expansion disabled by default to prevent duplicate searches
-   - Can be enabled in `config/config.json` → `web_search.keyword_extraction.query_expansion: true`
-   - Requires server restart after configuration change
+4. **Query optimization**: Generates optimized search queries from extracted keywords
 
 ### Search Process Flow
 ```
-User Query → Keyword Extraction → Adequacy Check → Web Search → Result Processing
+User Query → Keyword Extraction → Adequacy Check → Provider Selection →
+Cache Check → Web Search → Result Filtering → Content Enrichment →
+Cache Storage → Analytics Recording → Response
 ```
-
-If keywords are deemed inadequate (too generic, too few, or lacking technical terms), the system will return an error instead of performing a search with poor results.
 
 ### Configuration Options
 All web search settings are in `config/config.json` under the `web_search` section:
+
 ```json
 {
   "web_search": {
     "enabled": true,
-    "search_engine": "bing",
+    "default_provider": "duckduckgo",
     "use_keyword_extraction": true,
     "max_results": 5,
     "timeout": 100,
+    "providers": {
+      "bing": { "enabled": true },
+      "duckduckgo": { "enabled": true },
+      "searxng": { "enabled": false }
+    },
+    "result_filtering": {
+      "enabled": true,
+      "enable_duplicate_detection": true,
+      "enable_relevance_scoring": true,
+      "min_content_length": 100,
+      "max_content_length": 5000
+    },
+    "cache": {
+      "enabled": true,
+      "enable_redis": false,
+      "default_ttl": 3600,
+      "max_cache_size": 1000
+    },
+    "analytics": {
+      "enabled": true,
+      "max_history_size": 1000,
+      "retention_days": 7
+    },
     "keyword_extraction": {
       "enabled": true,
       "use_llm": true,
@@ -468,6 +570,14 @@ All web search settings are in `config/config.json` under the `web_search` secti
   }
 }
 ```
+
+### Analytics and Monitoring
+The system provides comprehensive analytics through:
+- **Performance Reports**: Success rates, response times, cache hit rates
+- **Provider Statistics**: Individual provider performance metrics
+- **Query Trends**: Most frequently searched terms
+- **Error Analysis**: Common failure patterns and troubleshooting data
+- **Historical Data**: Trends over time with configurable retention
 
 ## 📊 Performance Metrics
 
