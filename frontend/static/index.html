@@ -997,7 +997,7 @@
             checkSystemStatus();
             
             // Add welcome message
-            addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n??**Normal Chat** - General conversation and assistance\n??**RAG Search** - Search through your knowledge base\n??**Document Q&A** - Ask questions about your combined document\n??**File Analysis** - Upload and analyze files\n??**Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
+            addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n• **Normal Chat** - General conversation and assistance\n• **RAG Search** - Search through your knowledge base\n• **Document Q&A** - Ask questions about your combined document\n• **File Analysis** - Upload and analyze files\n• **Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
         });
 
         function setupEventListeners() {
@@ -1175,7 +1175,7 @@
         }
 
         async function sendNormalMessage(message) {
-            const response = await fetch('/api/chat/messages', {
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1191,15 +1191,11 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const result = await response.json();
-            return {
-                response: result.message,
-                session_id: result.session_id
-            };
+            return await response.json();
         }
 
         async function sendRagMessage(message) {
-            const response = await fetch('/api/chat/messages', {
+            const response = await fetch('/api/chat/rag', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1207,8 +1203,7 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    session_id: sessionId,
-                    use_rag: true
+                    session_id: sessionId
                 })
             });
 
@@ -1216,16 +1211,28 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const result = await response.json();
-            return {
-                response: result.message,
-                session_id: result.session_id
-            };
+            return await response.json();
         }
 
         async function sendDocumentMessage(message) {
             // For document analysis, use RAG chat which searches the knowledge base
-            return await sendRagMessage(message);
+            const response = await fetch('/api/chat/rag', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({
+                    message: message,
+                    session_id: sessionId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return await response.json();
         }
 
         async function sendFileMessage(message) {
@@ -1253,55 +1260,31 @@
         }
 
         async function sendSearchMessage(message) {
-            // First perform the web search
-            const searchResponse = await fetch('/api/search/web', {
+            const response = await fetch('/api/chat/web-search', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${userToken}`
                 },
                 body: JSON.stringify({
-                    query: message,
-                    max_results: 5
-                })
-            });
-
-            if (!searchResponse.ok) {
-                throw new Error(`Search error! status: ${searchResponse.status}`);
-            }
-
-            const searchResult = await searchResponse.json();
-
-            // Display search results in context
-            if (searchResult.results && searchResult.results.length > 0) {
-                displaySearchContext(message, [message], message, searchResult.results);
-            }
-
-            // Now send to LLM with search results as context
-            const contextMessage = `Based on these search results:\n${JSON.stringify(searchResult.results, null, 2)}\n\nUser question: ${message}`;
-
-            const chatResponse = await fetch('/api/chat/messages', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`
-                },
-                body: JSON.stringify({
-                    message: contextMessage,
+                    message: message,
                     session_id: sessionId
                 })
             });
 
-            if (!chatResponse.ok) {
-                throw new Error(`Chat error! status: ${chatResponse.status}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const chatResult = await chatResponse.json();
-            return {
-                response: chatResult.message,
-                session_id: chatResult.session_id,
-                search_results: searchResult.results
-            };
+            const result = await response.json();
+            
+            // Get and display search context if available
+            if (result.keyword_extraction_used && result.optimized_queries) {
+                // Use search results from the response instead of making another API call
+                displaySearchContext(message, result.optimized_queries, result.successful_query, result.search_results || []);
+            }
+
+            return result;
         }
 
         // Enhanced search is now handled by the main web search functionality
@@ -1564,8 +1547,8 @@
                     ragStatus = 'Not ready';
                 }
                 
-                const llmStatusIcon = health.status === 'healthy' ? '?? : 
-                                    health.status === 'ollama_unreachable' ? '?��' : '??;
+                const llmStatusIcon = health.status === 'healthy' ? '✅' : 
+                                    health.status === 'ollama_unreachable' ? '🔸' : '❌';
                 const llmStatusText = health.status === 'ollama_unreachable' ? 'Ollama Unreachable' : 
                                     health.status === 'error' ? 'Error' : 'Ready';
                 
@@ -1577,8 +1560,8 @@
                 statusSection.innerHTML = `
                     <div style="margin-bottom: 4px;">LLM: ${llmStatusIcon} ${health.model || 'Unknown'} (${llmStatusText})</div>
                     <div style="margin-bottom: 4px;">RAG: ${ragStatus}</div>
-                    <div style="margin-bottom: 4px;">Web Search: ${health.web_search_enabled ? '??Enabled' : '??Disabled'}</div>
-                    <div style="margin-bottom: 4px;">Keywords: ${health.keyword_extraction_enabled ? '??Enabled' : '??Disabled'}</div>
+                    <div style="margin-bottom: 4px;">Web Search: ${health.web_search_enabled ? '✅ Enabled' : '❌ Disabled'}</div>
+                    <div style="margin-bottom: 4px;">Keywords: ${health.keyword_extraction_enabled ? '✅ Enabled' : '❌ Disabled'}</div>
                     <div style="margin-bottom: 4px;">Response Time: ${responseTimeText}</div>
                     <div style="margin-bottom: 4px;">Speed: ${tokensPerSecText}</div>
                     <div style="margin-bottom: 4px;">Processing: ${processingTimeText}</div>
@@ -1634,7 +1617,7 @@
                 });
                 
                 // Add welcome message
-                addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n??**Normal Chat** - General conversation and assistance\n??**RAG Search** - Search through your knowledge base\n??**Document Q&A** - Ask questions about your combined document\n??**File Analysis** - Upload and analyze files\n??**Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
+                addMessage('assistant', 'Hello! I\'m your enhanced AI assistant. I can help you with:\n\n• **Normal Chat** - General conversation and assistance\n• **RAG Search** - Search through your knowledge base\n• **Document Q&A** - Ask questions about your combined document\n• **File Analysis** - Upload and analyze files\n• **Web Search** - Get current information from the internet\n\nSelect a mode above or upload files to get started!');
                 
                 showNotification('New chat started', 'success');
             }
