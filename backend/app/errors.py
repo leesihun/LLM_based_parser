@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import HTTPException
 
 from backend.common.errors import AppError, as_error_response
 
@@ -14,6 +15,14 @@ def register_error_handlers(app: Flask) -> None:
     def _handle_app_error(exc: AppError):  # type: ignore[override]
         response = as_error_response(exc)
         return jsonify(response.payload), response.status_code
+
+    @app.errorhandler(HTTPException)
+    def _handle_http_exception(exc: HTTPException):  # type: ignore[override]
+        response = {
+            "error": exc.name.lower().replace(" ", "_"),
+            "message": exc.description,
+        }
+        return jsonify(response), exc.code
 
     @app.errorhandler(Exception)
     def _handle_unexpected(exc: Exception):  # type: ignore[override]

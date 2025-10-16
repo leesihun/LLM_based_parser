@@ -33,4 +33,12 @@ def create_app(config_path: str | None = None) -> Flask:
     register_error_handlers(app)
     register_blueprints(app, services)
 
+    @app.route("/")
+    def index():
+        return app.send_static_file("index.html")
+
+    @app.route("/login.html")
+    def login_page():
+        return app.send_static_file("login.html")
+
     return app
