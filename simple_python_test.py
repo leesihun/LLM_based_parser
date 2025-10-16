@@ -14,7 +14,7 @@ def test_python_search():
     """Test web search for 'python' and return raw results structure"""
 
     try:
-        from src.web_search_feature import create_web_search_feature
+        from backend.services.search.web_search_feature import create_web_search_feature
         print("Successfully imported WebSearchFeature")
     except ImportError as e:
         print(f"Import error: {e}")

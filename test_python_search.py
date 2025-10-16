@@ -8,12 +8,12 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from src.web_search_feature import create_web_search_feature
+    from backend.services.search.web_search_feature import create_web_search_feature
     print("Successfully imported WebSearchFeature")
 except ImportError as e:
     print(f"Import error: {e}")
-    print("Available files in src directory:")
-    for file in os.listdir('src'):
+    print("Available files in backend/services/search directory:")
+    for file in os.listdir('backend/services/search'):
         if file.endswith('.py'):
             print(f"  - {file}")
     sys.exit(1)

@@ -16,9 +16,9 @@ python setup_system.py
 pip install -r requirements.txt
 
 # Test individual components
-python -c "from src.keyword_extractor import KeywordExtractor; print('Keyword extraction OK')"
-python -c "from src.rag_system import RAGSystem; print('RAG system OK')"
-python -c "from src.selenium_search import SeleniumSearcher; print('Web search OK')"
+python -c "from backend.services.search.keyword_extractor import KeywordExtractor; print('Keyword extraction OK')"
+python -c "from backend.services.rag.rag_system import RAGSystem; print('RAG system OK')"
+python -c "from backend.services.search.selenium_search import SeleniumSearcher; print('Web search OK')"
 ```
 
 ### Key Configuration Files
@@ -43,7 +43,7 @@ The system follows a modular API-first architecture:
 - Uses Ollama for local LLM execution
 - Configurable models (default: gemma3:12b)
 - Handles both streaming and non-streaming responses
-- System prompt hierarchy (universal → mode-specific → contextual)
+- System prompt hierarchy (universal ??mode-specific ??contextual)
 
 **RAG System (`src/rag_system.py`)**
 - ChromaDB vector storage with Ollama embeddings (nomic-embed-text)
@@ -168,7 +168,7 @@ except SpecificException as e:
 ```bash
 # Test web search capabilities
 python -c "
-from src.web_search_feature import WebSearchFeature
+from backend.services.search.web_search_feature import WebSearchFeature
 searcher = WebSearchFeature({}, None)
 caps = searcher.get_search_capabilities()
 print('Search available:', caps.get('selenium_available'))
@@ -176,7 +176,7 @@ print('Search available:', caps.get('selenium_available'))
 
 # Test RAG system
 python -c "
-from src.rag_system import RAGSystem
+from backend.services.rag.rag_system import RAGSystem
 rag = RAGSystem('config/config.json')
 stats = rag.get_stats()
 print('Documents:', stats.get('document_count'))
@@ -184,7 +184,7 @@ print('Documents:', stats.get('document_count'))
 
 # Test keyword extraction adequacy
 python -c "
-from src.keyword_extractor import KeywordExtractor
+from backend.services.search.keyword_extractor import KeywordExtractor
 extractor = KeywordExtractor({}, None)
 result = extractor.extract_keywords('machine learning algorithms')
 print('Adequate keywords:', result.get('adequate_keywords'))
@@ -233,7 +233,7 @@ The keyword extraction system prevents poor searches by validating:
 
 ### System Initialization
 The `setup_system.py` script:
-1. Processes Excel files (`data/폴드긍정.xlsx`, `data/폴드부정.xlsx`)
+1. Processes Excel files (`data/?�드긍정.xlsx`, `data/?�드부??xlsx`)
 2. Converts to markdown (`data/combined_data.md`)
 3. Initializes ChromaDB with embeddings
 4. Sets up the RAG system for first use
