@@ -120,12 +120,20 @@
       }
     },
     "providers": {
+      "google": { "enabled": true },
       "searxng": { "enabled": false },
       "duckduckgo": { "enabled": true },
       "brave": { "enabled": true },
-      "bing": { "enabled": true }
+      "bing": { "enabled": true },
+      "brave_api": { "enabled": false },
+      "tavily_api": { "enabled": false },
+      "exa_api": { "enabled": false }
     },
-    "bing_api_key": ""
+    "google_domain": "google.com",
+    "bing_api_key": "",
+    "brave_api_key": "",
+    "tavily_api_key": "",
+    "exa_api_key": ""
   },
   "rag": {
     "embedding": {

@@ -13,6 +13,54 @@ The repository is now split into two top-level domains:
 
 `server.py` remains at the repository root and simply boots the backend app via `backend.app.create_app`.
 
+### Page Assist Web Search Integration
+
+- **Version**: 2025-10-16 (v2.0.0)
+- **Change**: Integrated Page Assist-inspired web search providers with API-based search engines
+  - Added **Brave Search API** provider (`brave_api.py`) - requires API key
+  - Added **Tavily Search API** provider (`tavily_api.py`) - includes AI-generated answers
+  - Added **Exa Search API** provider (`exa_api.py`) - semantic search engine
+  - Enhanced **Google Search** provider with pagination and deduplication (mirrors Page Assist algorithm)
+  - Updated SearchManager with intelligent provider fallback system
+  - Added API key configuration in `config.json`
+- **Impact**: Web search now supports multiple premium search APIs alongside free providers. Users can choose between free HTML-based providers (Google, DuckDuckGo, Bing) and premium API providers (Brave, Tavily, Exa) for better quality and reliability.
+
+**Available Providers:**
+| Provider | Type | Requires API Key | Features |
+|----------|------|------------------|----------|
+| Google | HTML Scraping | No | Pagination, deduplication, region support |
+| DuckDuckGo | HTML Scraping | No | CAPTCHA-free, lightweight |
+| Bing | HTML/API | Optional | Fallback to web scraping |
+| SearXNG | API | No | Self-hosted metasearch |
+| **Brave API** | **API** | **Yes** | **Fast, reliable, structured results** |
+| **Tavily API** | **API** | **Yes** | **AI-generated answers, research-focused** |
+| **Exa API** | **API** | **Yes** | **Semantic search, AI-optimized** |
+
+**Configuration:**
+```json
+{
+  "web_search": {
+    "default_provider": "google",  // or "brave_api", "tavily_api", "exa_api"
+    "providers": {
+      "google": { "enabled": true },
+      "duckduckgo": { "enabled": true },
+      "brave_api": { "enabled": false },
+      "tavily_api": { "enabled": false },
+      "exa_api": { "enabled": false }
+    },
+    "google_domain": "google.com",
+    "brave_api_key": "YOUR_BRAVE_API_KEY",
+    "tavily_api_key": "YOUR_TAVILY_API_KEY",
+    "exa_api_key": "YOUR_EXA_API_KEY"
+  }
+}
+```
+
+**Get API Keys:**
+- Brave API: https://brave.com/search/api/
+- Tavily API: https://tavily.com/
+- Exa API: https://exa.ai/
+
 ### Web Search Provider (lite backend) fix
 
 - Version: 2025-10-16
@@ -54,3 +102,31 @@ curl -X POST http://localhost:8000/api/search/web \
   -d '{"query":"site:python.org decorators","max_results":3}'
 ```
 - Expect: `provider` equals the configured `default_provider` only; if blocked, response shows `success:false` without switching providers.
+
+### Session History API Fix
+
+- **Version**: 2025-10-16 (v1.2.2)
+- **Change**: Fixed session history retrieval API that was not properly implemented.
+  - Added missing `/api/conversations/<session_id>/history` endpoint with `include_system` query parameter support
+  - Updated `/api/conversations/<session_id>` to return only conversation metadata (not full history)
+  - Fixed response format inconsistencies between API documentation and actual implementation
+- **Impact**: API clients can now properly retrieve session history using the documented endpoints. The separation between metadata and history endpoints provides better performance for listing conversations without loading full message history.
+
+**Endpoints Updated:**
+1. `GET /api/conversations/<session_id>` - Returns conversation metadata only
+   - Response: `{"conversation": {id, user_id, created_at, last_activity, title, total_messages}}`
+2. `GET /api/conversations/<session_id>/history` - Returns message history
+   - Query param: `include_system` (default: false)
+   - Response: `{"session_id": "...", "history": [...]}`
+3. `DELETE /api/conversations/<session_id>` - Response format updated to `{"deleted": true/false}`
+
+**Verification:**
+```bash
+# Get conversation metadata
+curl -X GET "http://localhost:8000/api/conversations/<session_id>" \
+  -H "Authorization: Bearer <token>"
+
+# Get conversation history
+curl -X GET "http://localhost:8000/api/conversations/<session_id>/history?include_system=true" \
+  -H "Authorization: Bearer <token>"
+```

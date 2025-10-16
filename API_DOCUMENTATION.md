@@ -1,6 +1,6 @@
 # HE Team LLM Assistant - API Documentation
 
-**Version 1.2.1 | Last Updated: October 14, 2025**
+**Version 1.2.2 | Last Updated: October 16, 2025**
 
 This document provides comprehensive documentation for all REST API endpoints in the HE Team LLM Assistant system.
 
@@ -593,7 +593,7 @@ Explicitly create a new conversation session.
 
 ### Get Conversation
 
-Get details about a specific conversation.
+Get metadata about a specific conversation (without messages).
 
 **Endpoint**: `GET /api/conversations/<session_id>`
 
@@ -607,18 +607,16 @@ Get details about a specific conversation.
     "user_id": "user_123",
     "created_at": "2025-01-08T10:30:00.123456",
     "last_activity": "2025-01-08T11:45:30.654321",
-    "messages": [...],
-    "metadata": {
-      "title": "Python programming help...",
-      "total_messages": 12
-    }
+    "title": "Python programming help...",
+    "total_messages": 12
   }
 }
 ```
 
 **Error Responses**:
-- `403`: Session access denied (belongs to different user)
 - `404`: Session not found
+
+**Note**: To get the actual messages, use `/api/conversations/<session_id>/history`
 
 ---
 
@@ -631,11 +629,12 @@ Get message history for a conversation.
 **Authentication**: Required
 
 **Query Parameters**:
-- `include_system` (optional): Include system messages (default: false)
+- `include_system` (optional): Include system messages (default: `false`)
 
 **Success Response (200)**:
 ```json
 {
+  "session_id": "session_abc123",
   "history": [
     {
       "role": "user",
@@ -649,10 +648,12 @@ Get message history for a conversation.
       "timestamp": "2025-01-08T10:30:18.654321",
       "metadata": {}
     }
-  ],
-  "session_id": "session_abc123"
+  ]
 }
 ```
+
+**Error Responses**:
+- `404`: Session not found
 
 ---
 
@@ -667,13 +668,16 @@ Delete a specific conversation.
 **Success Response (200)**:
 ```json
 {
-  "message": "Session deleted successfully"
+  "deleted": true
 }
 ```
 
-**Error Responses**:
-- `403`: Session access denied
-- `404`: Session not found
+**Error Response (404)**:
+```json
+{
+  "deleted": false
+}
+```
 
 ---
 

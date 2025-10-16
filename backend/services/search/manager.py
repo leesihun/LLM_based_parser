@@ -9,7 +9,16 @@ from typing import Dict, Iterable, List, Optional
 from .analytics import SearchAnalytics
 from .cache import SearchCache
 from .content_loader import ContentLoader
-from .providers import BingProvider, DuckDuckGoProvider, SearchProvider, SearxngProvider
+from .providers import (
+    BingProvider,
+    BraveAPIProvider,
+    DuckDuckGoProvider,
+    ExaAPIProvider,
+    GoogleProvider,
+    SearchProvider,
+    SearxngProvider,
+    TavilyAPIProvider,
+)
 from .result_filter import ResultFilter
 from .settings import SearchSettings
 from .types import SearchExecution, SearchResult
@@ -40,15 +49,67 @@ class SearchManager:
         self.analytics = SearchAnalytics(analytics_config)
 
     def _register_providers(self) -> None:
+        """Register all available search providers based on configuration."""
+        # Google provider
+        google_toggle = self.settings.provider_toggles.get("google")
+        if google_toggle is None or google_toggle.enabled:
+            google_domain = getattr(self.settings, 'google_domain', 'google.com')
+            self.providers["google"] = GoogleProvider(
+                domain=google_domain,
+                timeout=self.settings.request_timeout
+            )
+        
+        # SearXNG provider
         searxng_toggle = self.settings.provider_toggles.get("searxng")
         if searxng_toggle is None or searxng_toggle.enabled:
             self.providers["searxng"] = SearxngProvider(self.settings)
+        
+        # DuckDuckGo provider
         duck_toggle = self.settings.provider_toggles.get("duckduckgo")
         if duck_toggle is None or duck_toggle.enabled:
             self.providers["duckduckgo"] = DuckDuckGoProvider(self.settings)
+        
+        # Bing provider
         bing_toggle = self.settings.provider_toggles.get("bing")
         if bing_toggle is None or bing_toggle.enabled:
             self.providers["bing"] = BingProvider(self.settings)
+        
+        # Brave API provider
+        brave_api_toggle = self.settings.provider_toggles.get("brave_api")
+        brave_api_key = getattr(self.settings, 'brave_api_key', None)
+        if (brave_api_toggle is None or brave_api_toggle.enabled) and brave_api_key:
+            try:
+                self.providers["brave_api"] = BraveAPIProvider(
+                    api_key=brave_api_key,
+                    timeout=self.settings.request_timeout
+                )
+            except ValueError as e:
+                self.logger.warning(f"Brave API provider not initialized: {e}")
+        
+        # Tavily API provider
+        tavily_api_toggle = self.settings.provider_toggles.get("tavily_api")
+        tavily_api_key = getattr(self.settings, 'tavily_api_key', None)
+        if (tavily_api_toggle is None or tavily_api_toggle.enabled) and tavily_api_key:
+            try:
+                self.providers["tavily_api"] = TavilyAPIProvider(
+                    api_key=tavily_api_key,
+                    timeout=self.settings.request_timeout,
+                    include_answer=self.settings.simple_mode
+                )
+            except ValueError as e:
+                self.logger.warning(f"Tavily API provider not initialized: {e}")
+        
+        # Exa API provider
+        exa_api_toggle = self.settings.provider_toggles.get("exa_api")
+        exa_api_key = getattr(self.settings, 'exa_api_key', None)
+        if (exa_api_toggle is None or exa_api_toggle.enabled) and exa_api_key:
+            try:
+                self.providers["exa_api"] = ExaAPIProvider(
+                    api_key=exa_api_key,
+                    timeout=self.settings.request_timeout
+                )
+            except ValueError as e:
+                self.logger.warning(f"Exa API provider not initialized: {e}")
 
     def _select_provider(self, override: Optional[str] = None) -> Optional[SearchProvider]:
         provider_name = (override or self.settings.default_provider or "").lower()
@@ -58,8 +119,8 @@ class SearchManager:
         # If fallbacks are disabled, do not select any alternative provider
         if self.settings.disable_fallbacks:
             return None
-        # fallback ordering similar to Page Assist
-        for candidate in ("searxng", "duckduckgo", "bing"):
+        # fallback ordering similar to Page Assist (prefer free providers first)
+        for candidate in ("google", "duckduckgo", "bing", "searxng", "brave_api", "tavily_api", "exa_api"):
             if candidate in self.providers:
                 return self.providers[candidate]
         return None

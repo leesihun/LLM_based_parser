@@ -47,6 +47,12 @@ class SearchSettings:
     cache_ttl: Optional[int] = None
     # When true, do not perform any cross-provider fallbacks; use the selected provider only
     disable_fallbacks: bool = False
+    # API keys for various search providers (from Page Assist)
+    google_domain: str = "google.com"
+    bing_api_key: str = ""
+    brave_api_key: str = ""
+    tavily_api_key: str = ""
+    exa_api_key: str = ""
 
 
     @classmethod
@@ -56,15 +62,14 @@ class SearchSettings:
 
         toggles: Dict[str, ProviderToggle] = {}
         for name in (
+            "google",
             "searxng",
             "duckduckgo",
             "brave",
             "bing",
-            "startpage",
-            "exa",
-            "firecrawl",
-            "ollama-search",
-            "tavily-api",
+            "brave_api",
+            "tavily_api",
+            "exa_api",
         ):
             toggle_cfg = providers_cfg.get(name, {})
             toggles[name] = ProviderToggle(enabled=toggle_cfg.get("enabled", True))
@@ -103,4 +108,9 @@ class SearchSettings:
             result_filtering=result_filtering_settings,
             cache_ttl=cache_ttl,
             disable_fallbacks=config.get("disable_fallbacks", False),
+            google_domain=config.get("google_domain", "google.com"),
+            bing_api_key=config.get("bing_api_key", ""),
+            brave_api_key=config.get("brave_api_key", ""),
+            tavily_api_key=config.get("tavily_api_key", ""),
+            exa_api_key=config.get("exa_api_key", ""),
         )
