@@ -31,10 +31,17 @@ class HTMLSearcher:
         self.timeout = self.config.get('timeout', 15)
         self.max_results = self.config.get('max_results', 5)
         self.delay_between_requests = self.config.get('delay', 2)
+        self.verify_ssl = self.config.get('verify_ssl', False)  # Disable SSL verification by default for corporate networks
 
         # Set up logging
         logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
+
+        # Disable SSL warnings if verification is disabled
+        if not self.verify_ssl:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            self.logger.info("🔓 SSL verification disabled for corporate network compatibility")
 
         # Session for persistent connections
         self.session = requests.Session()
@@ -48,7 +55,21 @@ class HTMLSearcher:
             'Upgrade-Insecure-Requests': '1'
         })
 
-        self.logger.info("HTMLSearcher initialized successfully")
+        # Configure retries with backoff
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "POST", "OPTIONS"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+        self.logger.info("✅ HTMLSearcher initialized successfully")
 
     def _human_delay(self, min_seconds=1, max_seconds=3):
         """Add random delay to avoid rate limiting"""
@@ -64,9 +85,10 @@ class HTMLSearcher:
             url = "https://html.duckduckgo.com/html/"
             params = {'q': query}
 
-            self.logger.info(f"Searching DuckDuckGo HTML: {query}")
-            response = self.session.post(url, data=params, timeout=self.timeout)
+            self.logger.info(f"🔍 [DUCKDUCKGO] Searching DuckDuckGo HTML: {query}")
+            response = self.session.post(url, data=params, timeout=self.timeout, verify=self.verify_ssl)
             response.raise_for_status()
+            self.logger.info(f"✅ [DUCKDUCKGO] Received response: {response.status_code}")
 
             soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -107,7 +129,7 @@ class HTMLSearcher:
             self.logger.info(f"Found {len(results)} results from DuckDuckGo HTML")
 
         except Exception as e:
-            self.logger.error(f"DuckDuckGo HTML search failed: {e}")
+            self.logger.error(f"❌ [DUCKDUCKGO] DuckDuckGo HTML search failed: {e}")
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
 
@@ -121,9 +143,10 @@ class HTMLSearcher:
             # Brave search URL
             url = f"https://search.brave.com/search?q={quote_plus(query)}"
 
-            self.logger.info(f"Searching Brave: {query}")
-            response = self.session.get(url, timeout=self.timeout)
+            self.logger.info(f"🔍 [BRAVE] Searching Brave: {query}")
+            response = self.session.get(url, timeout=self.timeout, verify=self.verify_ssl)
             response.raise_for_status()
+            self.logger.info(f"✅ [BRAVE] Received response: {response.status_code}")
 
             soup = BeautifulSoup(response.text, 'html.parser')
 
@@ -164,7 +187,9 @@ class HTMLSearcher:
             self.logger.info(f"Found {len(results)} results from Brave")
 
         except Exception as e:
-            self.logger.error(f"Brave search failed: {e}")
+            self.logger.error(f"❌ [BRAVE] Brave search failed: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
 
         return results
 
