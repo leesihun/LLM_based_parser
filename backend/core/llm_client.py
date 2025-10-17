@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 class LLMClient:
     """Main class for LLM operations using Ollama"""
     
-    def __init__(self, config_path: str = "backend/config/config.json"):
+    def __init__(self, config_path: str = "config.json"):
         """Initialize LLM client with configuration"""
         self.config_path = config_path
         self.config = self._load_config(config_path)

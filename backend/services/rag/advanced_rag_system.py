@@ -422,7 +422,7 @@ class DocumentRelationshipAnalyzer:
 class AdvancedRAGSystem:
     """Enhanced RAG system with multi-document intelligence"""
     
-    def __init__(self, config_path: str = "backend/config/config.json", base_rag_system=None):
+    def __init__(self, config_path: str = "config.json", base_rag_system=None):
         """
         Initialize advanced RAG system
         

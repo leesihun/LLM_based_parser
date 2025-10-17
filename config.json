@@ -1,4 +1,13 @@
 {
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "secret_key": "he_team_llm_assistant_secret_key"
+  },
+  "ui": {
+    "title": "HE team LLM assistant",
+    "theme": "dark"
+  },
   "ollama": {
     "host": "http://localhost:11434",
     "model": "gemma3:12b",
@@ -7,14 +16,6 @@
     "temperature": 0.7,
     "top_p": 0.9,
     "top_k": 40
-  },
-  "server": {
-    "port": 8000,
-    "host": "0.0.0.0"
-  },
-  "ui": {
-    "title": "HE team LLM assistant",
-    "theme": "dark"
   },
   "system_prompt": {
     "enabled": true,
@@ -43,19 +44,29 @@
     "enabled": true,
     "use_typescript_search": true,
     "default_provider": "duckduckgo",
-    "note": "Google requires JavaScript - use DuckDuckGo or API providers instead",
     "search_method": "duckduckgo",
-    "disable_fallbacks": true,
+    "search_engine": "bing",
     "simple_mode": true,
     "visit_specific_website": true,
+    "disable_fallbacks": true,
+    "fallback_to_html": false,
+    "fallback_to_google": false,
+    "use_keyword_extraction": true,
+    "total_results": 5,
+    "max_results": 5,
+    "timeout": 100,
+    "delay": 10,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "searxng_url": "http://192.168.219.113:8080",
     "searxng_json_mode": false,
     "auto_restart_searxng": false,
     "restart_on_search_failure": false,
-    "search_engine": "bing",
-    "fallback_to_html": false,
-    "fallback_to_google": false,
-    "use_keyword_extraction": true,
+    "cache_ttl": 3600,
+    "google_domain": "google.com",
+    "bing_api_key": "",
+    "brave_api_key": "",
+    "tavily_api_key": "",
+    "exa_api_key": "",
     "result_filtering": {
       "enabled": true,
       "enable_duplicate_detection": true,
@@ -74,11 +85,6 @@
         "malicious-site.net"
       ]
     },
-    "total_results": 5,
-    "max_results": 5,
-    "timeout": 100,
-    "delay": 10,
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "cache": {
       "enabled": true,
       "enable_redis": false,
@@ -91,7 +97,6 @@
         "password": null
       }
     },
-    "cache_ttl": 3600,
     "analytics": {
       "enabled": true,
       "max_history_size": 1000,
@@ -130,12 +135,7 @@
       "brave_api": { "enabled": false },
       "tavily_api": { "enabled": false },
       "exa_api": { "enabled": false }
-    },
-    "google_domain": "google.com",
-    "bing_api_key": "",
-    "brave_api_key": "",
-    "tavily_api_key": "",
-    "exa_api_key": ""
+    }
   },
   "rag": {
     "embedding": {
@@ -167,5 +167,14 @@
       "cache_size": 1000,
       "parallel_processing": true
     }
+  },
+  "paths": {
+    "data": "./data",
+    "uploads": "./uploads",
+    "conversations": "./conversations",
+    "users": "./backend/config/users.json",
+    "sessions": "./backend/config/user_sessions.json",
+    "chroma_db": "./data/chroma_db",
+    "knowledge_base": "./data/combined_data.md"
   }
 }

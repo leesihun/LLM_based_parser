@@ -12,7 +12,7 @@ from backend.app.errors import register_error_handlers
 from backend.app.routes import register_blueprints
 
 
-DEFAULT_CONFIG = str(Path(__file__).resolve().parents[1] / "config" / "config.json")
+DEFAULT_CONFIG = str(Path(__file__).resolve().parents[2] / "config.json")
 
 
 def create_app(config_path: str | None = None) -> Flask:

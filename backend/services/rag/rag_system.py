@@ -116,7 +116,7 @@ class OllamaEmbeddingFunction(EmbeddingFunction):
 class RAGSystem:
     """RAG system for document retrieval and context generation with configurable embedding"""
     
-    def __init__(self, config_path: str = "backend/config/config.json"):
+    def __init__(self, config_path: str = "config.json"):
         """
         Initialize RAG system with configuration
         
