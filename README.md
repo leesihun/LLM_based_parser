@@ -415,6 +415,43 @@ For issues and questions:
 
 ## Changelog
 
+### Version 2.1.4 (2025-10-17)
+
+**JSON Path Queries Fixed (Section 7.5.4):**
+- Added automatic `json_file_id` creation if not already defined
+  - Checks if variable exists, uploads warpage JSON file if needed
+  - Uses `data/warpage_data/20250925_stats.json` as specified
+  - Creates sample data if file doesn't exist
+- Updated all query examples to use warpage data structure:
+  - Example 1: Query specific material analysis (`material_analysis.0`)
+  - Example 2: Query warpage statistics section (`warpage_statistics`)
+  - Example 3: Query dataset information (`dataset_info`)
+- Removed old "users" data references, now fully aligned with warpage data
+
+**File Changes:**
+- `python_API_call.ipynb`: Section 7.5.4 now self-contained with warpage data
+- `README.md`: Updated changelog
+
+### Version 2.1.3 (2025-10-17)
+
+**RAG Section Reorganization:**
+- **Section 6.1** now creates RAG dataset FIRST (moved from 6.5)
+  - Emphasizes that RAG dataset must be created before querying
+  - Improved output formatting: shows only progress messages during upload
+  - Full API response displayed only at the end for verification
+  - Cleaner progress indicators: [1/3], [2/3], [3/3] with emojis
+- All other section 6 subsections renumbered accordingly (6.1→6.2, 6.2→6.3, etc.)
+
+**Output Improvements:**
+- Progress-based output for RAG dataset creation
+- Clear status messages with ✓, ❌, 📤, 📊 indicators
+- Summary table format for RAG statistics
+- Full response shown only once at completion
+
+**File Changes:**
+- `python_API_call.ipynb`: RAG section reorganized with improved UX
+- `README.md`: Updated changelog
+
 ### Version 2.1.2 (2025-10-17)
 
 **API Notebook Improvements:**
@@ -433,7 +470,7 @@ For issues and questions:
 
 ---
 
-**Version**: 2.1.2
+**Version**: 2.1.4
 **Last Updated**: 2025-10-17
 
 ### Previous Versions
