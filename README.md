@@ -415,6 +415,23 @@ For issues and questions:
 
 ## Changelog
 
+### Version 2.1.5 (2025-10-17)
+
+**Improved Chat Output Display:**
+- Chat sections now show **only the answer**, not full API response objects
+- Updated sections:
+  - 3.1: Send a Simple Chat Message - shows answer with session ID
+  - 3.2: Continue the Conversation - shows answer only
+  - 3.3: Chat with Web Search - shows answer with context note
+  - 6.4: Chat with RAG Context - shows answer with context note
+  - 7.3.2: Text File Analysis - shows answer for both initial and follow-up questions
+- Clean output format with separator lines for better readability
+- Full API response shown only on errors for debugging
+
+**File Changes:**
+- `python_API_call.ipynb`: Improved output formatting for all chat sections
+- `README.md`: Updated changelog
+
 ### Version 2.1.4 (2025-10-17)
 
 **JSON Path Queries Fixed (Section 7.5.4):**
@@ -470,7 +487,7 @@ For issues and questions:
 
 ---
 
-**Version**: 2.1.4
+**Version**: 2.1.5
 **Last Updated**: 2025-10-17
 
 ### Previous Versions
