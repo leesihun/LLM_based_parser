@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -160,7 +161,7 @@ def show_web_search_settings(config: Dict[str, Any], config_path: Optional[Path]
         kv("missing API keys", ", ".join(blank_keys))
 
 
-def run_search_probe(config: Dict[str, Any]) -> None:
+def run_search_probe(config: Dict[str, Any], query: str, provider_override: Optional[str], max_results: int) -> None:
     section("SearchManager Probe")
     try:
         from backend.services.search.manager import SearchManager
@@ -188,8 +189,12 @@ def run_search_probe(config: Dict[str, Any]) -> None:
             kv("bridge self-check failed", exc)
 
     print("\nTriggering a live search via the TypeScript bridge...")
+    if provider_override:
+        kv("provider override", provider_override)
+    kv("requested results", max_results)
+    kv("query", query)
     try:
-        execution = manager.search("diagnostic web search probe", max_results=3)
+        execution = manager.search(query, max_results=max_results, provider_override=provider_override)
     except Exception as exc:
         print(f"SearchManager.search raised an exception: {exc}")
         return
@@ -211,6 +216,24 @@ def run_search_probe(config: Dict[str, Any]) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Web search diagnostic helper")
+    parser.add_argument(
+        "--query",
+        default="diagnostic web search probe",
+        help="Query to send through the TypeScript bridge",
+    )
+    parser.add_argument(
+        "--provider",
+        help="Force a specific provider (e.g. google, brave_api, tavily_api)",
+    )
+    parser.add_argument(
+        "--max-results",
+        type=int,
+        default=3,
+        help="Maximum results to request from the provider",
+    )
+    args = parser.parse_args()
+
     print("=" * 80)
     print("Web Search Diagnostic Utility")
     print("=" * 80)
@@ -220,7 +243,7 @@ def main() -> None:
     check_typescript_assets()
     config_path, web_search_config = load_web_search_config()
     show_web_search_settings(web_search_config, config_path)
-    run_search_probe(web_search_config)
+    run_search_probe(web_search_config, args.query, args.provider, args.max_results)
 
     print("\nDiagnostics complete. Review the sections above to identify missing prerequisites.")
 
