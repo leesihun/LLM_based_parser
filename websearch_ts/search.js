@@ -88,7 +88,12 @@ async function webDuckDuckGoSearch(query, totalResults = 5) {
   try {
     const response = await fetch(
       "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query),
-      { signal: controller.signal }
+      {
+        signal: controller.signal,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+      }
     );
 
     const htmlString = await response.text();
@@ -103,7 +108,7 @@ async function webDuckDuckGoSearch(query, totalResults = 5) {
       if (link) {
         link = link.replace("//duckduckgo.com/l/?uddg=", "").replace(/&rut=.*/, "");
         const decodedLink = decodeURIComponent(link);
-        
+
         if (title && decodedLink) {
           searchResults.push({
             title,
