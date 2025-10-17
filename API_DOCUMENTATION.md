@@ -18,7 +18,7 @@ Complete API reference for the HE Team LLM Assistant.
 
 All API endpoints are prefixed with the base URL:
 ```
-http://localhost:8000
+http://10.252.38.241:8000
 ```
 
 ## Authentication
@@ -44,7 +44,7 @@ Authenticate a user and receive a session token.
 ```json
 {
   "username": "admin",
-  "password": "admin123"
+  "password": "administrator"
 }
 ```
 
