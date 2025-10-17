@@ -43,6 +43,7 @@
     "enabled": true,
     "use_typescript_search": true,
     "default_provider": "duckduckgo",
+    "note": "Google requires JavaScript - use DuckDuckGo or API providers instead",
     "search_method": "duckduckgo",
     "disable_fallbacks": true,
     "simple_mode": true,
