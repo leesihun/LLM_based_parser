@@ -413,7 +413,34 @@ For issues and questions:
 - ChromaDB for vector database
 - The open-source community
 
+## Changelog
+
+### Version 2.1.2 (2025-10-17)
+
+**API Notebook Improvements:**
+- Reorganized JSON processing section (7.5) with proper subsection ordering
+- Removed duplicate section headers and subsections
+- Added section 6.5: RAG dataset creation from markdown files
+  - Demonstrates loading `data/combined_data.md` into the RAG system
+  - Shows verification of loaded data via RAG statistics
+- Updated JSON file examples to use warpage analysis data
+  - Changed from generic user data to `data/warpage_data/20250925_stats.json`
+  - Includes sample warpage statistics structure with auto-generation if file missing
+- Improved documentation clarity and workflow examples
+
+**File Changes:**
+- `python_API_call.ipynb`: Major reorganization and content updates
+
 ---
 
-**Version**: 1.0.0
+**Version**: 2.1.2
 **Last Updated**: 2025-10-17
+
+### Previous Versions
+
+**Version 2.1.1 (2025-10-17)**
+- Initial comprehensive API documentation
+- Complete endpoint coverage in Jupyter notebook
+
+**Version 1.0.0**
+- Initial release with core features
