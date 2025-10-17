@@ -138,6 +138,46 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         except Exception as e:
             raise ValidationError(f"Failed to read file: {str(e)}")
 
+    @bp.post("/<file_id>/analyze-json")
+    @ctx.require_auth
+    def analyze_json_file(file_id: str):
+        """Perform comprehensive JSON analysis on the uploaded file."""
+        user = getattr(request, "user", {})
+        user_id = user.get("user_id", "unknown")
+
+        # Find the file
+        user_folder = UPLOAD_FOLDER / user_id
+        file_path = None
+        for f in user_folder.iterdir():
+            if f.stem == file_id:
+                file_path = f
+                break
+
+        if not file_path or not file_path.exists():
+            raise ValidationError(f"File not found: {file_id}")
+
+        # Check if it's a JSON file
+        if file_path.suffix.lower() != '.json':
+            raise ValidationError("File is not a JSON file")
+
+        # Get enhanced processor from services
+        try:
+            from backend.services.files.enhanced_file_processor import EnhancedFileProcessor
+            processor = EnhancedFileProcessor()
+
+            # Perform analysis
+            analysis = processor.analyze_file(str(file_path), '.json', user_id)
+
+            return jsonify({
+                "success": analysis.get('success', False),
+                "file_id": file_id,
+                "filename": file_path.name,
+                "analysis": analysis
+            })
+
+        except Exception as e:
+            raise ValidationError(f"Failed to analyze JSON file: {str(e)}")
+
     @bp.delete("/<file_id>")
     @ctx.require_auth
     def delete_file(file_id: str):

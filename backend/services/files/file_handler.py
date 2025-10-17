@@ -259,7 +259,11 @@ class FileHandler:
                 content = self._read_archive_file(file_path)
             else:
                 return {"success": False, "error": "Unsupported file category"}
-            
+
+            # Ensure content is not None
+            if content is None:
+                content = ""
+
             return {
                 "success": True,
                 "content": content,
@@ -272,19 +276,105 @@ class FileHandler:
             return {"success": False, "error": str(e)}
     
     def _read_text_file(self, file_path: Path) -> str:
-        """Read text-based files"""
+        """Read text-based files with JSON enhancement"""
         encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252']
-        
+
+        content = None
         for encoding in encodings:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
-                    return f.read()
+                    content = f.read()
+                break
             except UnicodeDecodeError:
                 continue
-        
+
         # If all encodings fail, read as binary and decode with errors ignored
-        with open(file_path, 'rb') as f:
-            return f.read().decode('utf-8', errors='ignore')
+        if content is None:
+            with open(file_path, 'rb') as f:
+                content = f.read().decode('utf-8', errors='ignore')
+
+        # Enhanced JSON processing
+        if file_path.suffix.lower() == '.json':
+            return self._format_json_content(content, file_path.name)
+
+        return content
+
+    def _format_json_content(self, content: str, filename: str) -> str:
+        """Format JSON content for better LLM comprehension"""
+        try:
+            # Parse JSON
+            data = json.loads(content)
+
+            # Generate formatted output with statistics
+            formatted = f"JSON File: {filename}\n"
+            formatted += "=" * 60 + "\n\n"
+
+            # Add statistics
+            stats = self._get_json_statistics(data)
+            formatted += "STATISTICS:\n"
+            formatted += f"  - Type: {stats['type']}\n"
+            formatted += f"  - Size: {stats['size']}\n"
+            if stats['type'] == 'array':
+                formatted += f"  - Array Length: {stats['array_length']}\n"
+            elif stats['type'] == 'object':
+                formatted += f"  - Keys: {stats['key_count']}\n"
+                formatted += f"  - Top-level fields: {', '.join(stats['keys'][:10])}\n"
+                if len(stats['keys']) > 10:
+                    formatted += f"    ... and {len(stats['keys']) - 10} more\n"
+
+            formatted += f"  - Max Depth: {stats['max_depth']}\n"
+            formatted += "\n" + "-" * 60 + "\n\n"
+
+            # Add prettified JSON
+            formatted += "FORMATTED CONTENT:\n\n"
+            formatted += json.dumps(data, indent=2, ensure_ascii=False)
+
+            return formatted
+
+        except json.JSONDecodeError as e:
+            # Return original content with error note if JSON is malformed
+            return f"JSON File: {filename}\n" + \
+                   f"WARNING: Malformed JSON - {str(e)}\n" + \
+                   "=" * 60 + "\n\n" + \
+                   "RAW CONTENT:\n\n" + content
+        except Exception as e:
+            # Fallback to original content
+            self.logger.warning(f"Error formatting JSON {filename}: {str(e)}")
+            return content
+
+    def _get_json_statistics(self, data: Any) -> Dict[str, Any]:
+        """Get statistics about JSON structure"""
+        stats = {
+            'type': type(data).__name__,
+            'size': len(json.dumps(data)),
+            'max_depth': self._calculate_json_depth(data),
+            'array_length': 0,
+            'key_count': 0,
+            'keys': []
+        }
+
+        if isinstance(data, list):
+            stats['type'] = 'array'
+            stats['array_length'] = len(data)
+        elif isinstance(data, dict):
+            stats['type'] = 'object'
+            stats['key_count'] = len(data)
+            stats['keys'] = list(data.keys())
+
+        return stats
+
+    def _calculate_json_depth(self, data: Any, current_depth: int = 0) -> int:
+        """Calculate maximum nesting depth of JSON structure"""
+        if isinstance(data, dict):
+            if not data:
+                return current_depth
+            return max(self._calculate_json_depth(v, current_depth + 1) for v in data.values())
+        elif isinstance(data, list):
+            if not data:
+                return current_depth
+            return max(self._calculate_json_depth(item, current_depth + 1) for item in data)
+        else:
+            return current_depth
     
     def _read_pdf_file(self, file_path: Path) -> str:
         """Read PDF files (requires PyPDF2 or similar)"""

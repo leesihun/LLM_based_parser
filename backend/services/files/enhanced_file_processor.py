@@ -164,7 +164,11 @@ class EnhancedFileProcessor:
             if category == 'text':
                 analysis['analysis'] = self._analyze_text_file(file_path_obj)
             elif category == 'code':
-                analysis['analysis'] = self._analyze_code_file(file_path_obj, file_type)
+                # Special handling for JSON files
+                if file_type == '.json':
+                    analysis['analysis'] = self._analyze_json_file(file_path_obj)
+                else:
+                    analysis['analysis'] = self._analyze_code_file(file_path_obj, file_type)
             elif category == 'document':
                 analysis['analysis'] = self._analyze_document_file(file_path_obj, file_type)
             elif category == 'presentation':
@@ -282,7 +286,200 @@ class EnhancedFileProcessor:
             
         except Exception as e:
             return {'error': str(e), 'type': 'code_analysis'}
-    
+
+    def _analyze_json_file(self, file_path: Path) -> Dict[str, Any]:
+        """Comprehensive JSON file analysis"""
+        try:
+            content = self._read_text_with_encoding(file_path)
+
+            # Parse JSON
+            try:
+                data = json.loads(content)
+            except json.JSONDecodeError as e:
+                return {
+                    'error': f'Invalid JSON: {str(e)}',
+                    'type': 'json_analysis',
+                    'valid': False,
+                    'raw_content': content[:500]  # First 500 chars
+                }
+
+            # Basic structure analysis
+            structure_info = self._analyze_json_structure(data)
+
+            # Schema detection
+            schema = self._detect_json_schema(data)
+
+            # Data quality analysis
+            quality = self._analyze_json_quality(data)
+
+            # Extract sample data
+            samples = self._extract_json_samples(data)
+
+            # Generate formatted content
+            formatted_content = json.dumps(data, indent=2, ensure_ascii=False)
+
+            return {
+                'valid': True,
+                'structure': structure_info,
+                'schema': schema,
+                'quality': quality,
+                'samples': samples,
+                'formatted_content': formatted_content[:10000],  # Limit to 10k chars
+                'statistics': {
+                    'size_bytes': len(content),
+                    'formatted_size': len(formatted_content),
+                    'compression_ratio': len(content) / len(formatted_content) if formatted_content else 1.0
+                },
+                'type': 'json_analysis'
+            }
+
+        except Exception as e:
+            return {'error': str(e), 'type': 'json_analysis'}
+
+    def _analyze_json_structure(self, data: Any) -> Dict[str, Any]:
+        """Analyze JSON structure and nesting"""
+        structure = {
+            'root_type': type(data).__name__,
+            'depth': self._calculate_json_depth(data),
+            'total_keys': 0,
+            'total_values': 0,
+            'unique_keys': set(),
+            'type_distribution': {}
+        }
+
+        def traverse(obj, current_depth=0):
+            obj_type = type(obj).__name__
+            structure['type_distribution'][obj_type] = structure['type_distribution'].get(obj_type, 0) + 1
+
+            if isinstance(obj, dict):
+                structure['total_keys'] += len(obj)
+                for key, value in obj.items():
+                    structure['unique_keys'].add(key)
+                    structure['total_values'] += 1
+                    traverse(value, current_depth + 1)
+            elif isinstance(obj, list):
+                structure['total_values'] += len(obj)
+                for item in obj:
+                    traverse(item, current_depth + 1)
+
+        traverse(data)
+        structure['unique_keys'] = list(structure['unique_keys'])[:50]  # Limit to 50
+
+        return structure
+
+    def _calculate_json_depth(self, data: Any, current_depth: int = 0) -> int:
+        """Calculate maximum nesting depth"""
+        if isinstance(data, dict):
+            if not data:
+                return current_depth
+            return max((self._calculate_json_depth(v, current_depth + 1) for v in data.values()), default=current_depth)
+        elif isinstance(data, list):
+            if not data:
+                return current_depth
+            return max((self._calculate_json_depth(item, current_depth + 1) for item in data), default=current_depth)
+        else:
+            return current_depth
+
+    def _detect_json_schema(self, data: Any) -> Dict[str, Any]:
+        """Detect JSON schema and data types"""
+        schema = {
+            'type': type(data).__name__,
+            'properties': {},
+            'array_item_types': []
+        }
+
+        if isinstance(data, dict):
+            for key, value in data.items():
+                value_type = type(value).__name__
+                if isinstance(value, (dict, list)):
+                    schema['properties'][key] = self._detect_json_schema(value)
+                else:
+                    schema['properties'][key] = {
+                        'type': value_type,
+                        'example': str(value)[:100]  # First 100 chars
+                    }
+        elif isinstance(data, list) and data:
+            # Analyze first few items for array schema
+            sample_size = min(5, len(data))
+            for item in data[:sample_size]:
+                item_schema = self._detect_json_schema(item)
+                if item_schema not in schema['array_item_types']:
+                    schema['array_item_types'].append(item_schema)
+
+            schema['length'] = len(data)
+
+        return schema
+
+    def _analyze_json_quality(self, data: Any) -> Dict[str, Any]:
+        """Analyze data quality and consistency"""
+        quality = {
+            'has_null_values': False,
+            'has_empty_strings': False,
+            'has_empty_arrays': False,
+            'has_empty_objects': False,
+            'consistency_issues': [],
+            'recommendations': []
+        }
+
+        def check_quality(obj, path="root"):
+            if obj is None:
+                quality['has_null_values'] = True
+            elif obj == "":
+                quality['has_empty_strings'] = True
+            elif isinstance(obj, list):
+                if len(obj) == 0:
+                    quality['has_empty_arrays'] = True
+                else:
+                    # Check array consistency
+                    types = set(type(item).__name__ for item in obj)
+                    if len(types) > 1:
+                        quality['consistency_issues'].append({
+                            'path': path,
+                            'issue': 'mixed_types_in_array',
+                            'types': list(types)
+                        })
+                    for i, item in enumerate(obj[:10]):  # Check first 10 items
+                        check_quality(item, f"{path}[{i}]")
+            elif isinstance(obj, dict):
+                if len(obj) == 0:
+                    quality['has_empty_objects'] = True
+                for key, value in obj.items():
+                    check_quality(value, f"{path}.{key}")
+
+        check_quality(data)
+
+        # Generate recommendations
+        if quality['has_null_values']:
+            quality['recommendations'].append("Consider handling null values explicitly")
+        if quality['has_empty_strings']:
+            quality['recommendations'].append("Empty strings detected - consider validation")
+        if quality['consistency_issues']:
+            quality['recommendations'].append("Array type consistency issues found")
+
+        return quality
+
+    def _extract_json_samples(self, data: Any, max_samples: int = 5) -> Dict[str, Any]:
+        """Extract sample data from JSON"""
+        samples = {
+            'records': [],
+            'keys': [],
+            'values': []
+        }
+
+        if isinstance(data, list):
+            # Extract sample records
+            sample_size = min(max_samples, len(data))
+            samples['records'] = data[:sample_size]
+            samples['total_count'] = len(data)
+        elif isinstance(data, dict):
+            # Extract sample keys and values
+            items = list(data.items())[:max_samples]
+            samples['keys'] = [k for k, v in items]
+            samples['values'] = [{k: v} for k, v in items]
+            samples['total_keys'] = len(data)
+
+        return samples
+
     def _analyze_document_file(self, file_path: Path, file_type: str) -> Dict[str, Any]:
         """Analyze document files (PDF, Word)"""
         try:

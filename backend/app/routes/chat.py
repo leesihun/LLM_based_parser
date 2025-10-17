@@ -165,4 +165,128 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         removed = memory.delete_session(session_id)
         return jsonify({"deleted": removed})
 
+    @bp.post("/with-json")
+    @ctx.require_auth
+    def chat_with_json():
+        """Chat with JSON context injection."""
+        import json as json_lib
+
+        payload = request.get_json(silent=True) or {}
+        message = (payload.get("message") or "").strip()
+
+        if not message:
+            raise ValidationError("Message is required")
+
+        # Get JSON data - either inline or from file reference
+        json_data = payload.get("json_data")
+        file_id = payload.get("file_id")
+        json_path = payload.get("json_path")  # Optional: query specific path
+
+        if not json_data and not file_id:
+            raise ValidationError("Either json_data or file_id is required")
+
+        # Get session
+        session_id = payload.get("session_id") or memory.create_session(
+            getattr(request, "user", {}).get("user_id")
+        )
+        temperature = payload.get("temperature")
+        max_tokens = payload.get("max_tokens")
+
+        try:
+            # Load JSON data
+            if file_id:
+                # Load from uploaded file
+                user = getattr(request, "user", {})
+                user_id = user.get("user_id", "unknown")
+                from pathlib import Path
+
+                upload_folder = Path(__file__).resolve().parents[3] / "uploads" / user_id
+                file_path = None
+                for f in upload_folder.iterdir():
+                    if f.stem == file_id and f.suffix.lower() == '.json':
+                        file_path = f
+                        break
+
+                if not file_path:
+                    raise ValidationError(f"JSON file not found: {file_id}")
+
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    json_data = json_lib.load(f)
+            else:
+                # Use inline JSON data
+                if isinstance(json_data, str):
+                    json_data = json_lib.loads(json_data)
+
+            # Extract specific path if provided
+            if json_path:
+                json_data = _extract_json_path(json_data, json_path)
+
+            # Format JSON for context
+            json_formatted = json_lib.dumps(json_data, indent=2, ensure_ascii=False)
+
+            # Limit JSON size to avoid token overflow
+            max_json_length = 8000
+            if len(json_formatted) > max_json_length:
+                json_formatted = json_formatted[:max_json_length] + "\n... (truncated)"
+
+            # Create context message
+            context = f"JSON Data Context:\n```json\n{json_formatted}\n```\n\n"
+            full_message = context + f"User Query: {message}"
+
+            # Store user message
+            memory.add_message(session_id, "user", message)
+
+            # Get LLM response with JSON context
+            messages = memory.get_context_for_llm(session_id)
+            # Insert JSON context as system message
+            messages.insert(0, {
+                "role": "system",
+                "content": "You are analyzing JSON data. Answer the user's questions based on the provided JSON context. Be specific and cite the relevant parts of the JSON structure."
+            })
+            messages.insert(1, {
+                "role": "system",
+                "content": context
+            })
+
+            result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
+            assistant_reply = result.get("content", "")
+
+            # Store assistant response
+            memory.add_message(session_id, "assistant", assistant_reply, metadata={"source": "json_chat"})
+
+            return jsonify({
+                "session_id": session_id,
+                "message": assistant_reply,
+                "json_data_included": True,
+                "json_path": json_path if json_path else "root",
+                "raw": result
+            })
+
+        except json_lib.JSONDecodeError as e:
+            raise ValidationError(f"Invalid JSON data: {str(e)}")
+        except Exception as e:
+            raise ValidationError(f"Error processing JSON: {str(e)}")
+
+    def _extract_json_path(data, path: str):
+        """Extract data from JSON using dot notation path (e.g., 'users.0.name')"""
+        parts = path.split('.')
+        current = data
+
+        for part in parts:
+            if isinstance(current, dict):
+                current = current.get(part)
+            elif isinstance(current, list):
+                try:
+                    index = int(part)
+                    current = current[index]
+                except (ValueError, IndexError):
+                    raise ValidationError(f"Invalid array index in path: {part}")
+            else:
+                raise ValidationError(f"Cannot navigate path '{path}' - not a dict or list")
+
+            if current is None:
+                raise ValidationError(f"Path '{path}' not found in JSON data")
+
+        return current
+
     return bp

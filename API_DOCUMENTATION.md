@@ -1,6 +1,7 @@
 # API Documentation
 
 Complete API reference for the HE Team LLM Assistant.
+v. 2.1.1, '25.10.17
 
 ## Table of Contents
 
@@ -9,6 +10,7 @@ Complete API reference for the HE Team LLM Assistant.
 - [Web Search](#web-search)
 - [RAG (Knowledge Base)](#rag-knowledge-base)
 - [File Management](#file-management)
+- [JSON Processing](#json-processing)
 - [Admin & User Management](#admin--user-management)
 - [Model Configuration](#model-configuration)
 - [System & Health](#system--health)
@@ -717,6 +719,214 @@ Delete an uploaded file.
 {
   "success": true,
   "message": "File deleted successfully"
+}
+```
+
+---
+
+## JSON Processing
+
+The system provides three powerful ways to work with JSON data:
+
+1. **Automatic Enhancement** - JSON files are automatically formatted with statistics when uploaded
+2. **Dedicated Analysis** - Comprehensive JSON structure and quality analysis
+3. **Context Injection** - Direct JSON-to-LLM integration for querying JSON data
+
+### POST /api/files/:file_id/analyze-json
+
+Perform comprehensive analysis on an uploaded JSON file, including structure analysis, schema detection, and quality assessment.
+
+**Headers Required:** `Authorization: Bearer <token>`
+
+**Request Body:** None required (uses file_id from URL)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "file_id": "data-file-123",
+  "filename": "users.json",
+  "analysis": {
+    "success": true,
+    "file_type": ".json",
+    "analysis": {
+      "valid_json": true,
+      "structure": {
+        "type": "array",
+        "length": 150,
+        "max_depth": 4,
+        "total_keys": 1250,
+        "unique_keys": 12
+      },
+      "schema": {
+        "type": "array_of_objects",
+        "properties": {
+          "id": "number",
+          "name": "string",
+          "email": "string",
+          "address": "object",
+          "tags": "array"
+        }
+      },
+      "quality": {
+        "completeness": 0.95,
+        "consistency": 0.92,
+        "null_count": 5,
+        "empty_string_count": 2,
+        "issues": []
+      },
+      "samples": [
+        {
+          "id": 1,
+          "name": "John Doe",
+          "email": "john@example.com"
+        }
+      ],
+      "statistics": {
+        "total_objects": 150,
+        "total_arrays": 15,
+        "total_primitives": 1800
+      }
+    }
+  }
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "File is not a JSON file"
+}
+```
+
+**Error Response (404 Not Found):**
+```json
+{
+  "error": "File not found: data-file-123"
+}
+```
+
+---
+
+### POST /api/chat/with-json
+
+Chat with the LLM while providing JSON data as context. Supports both inline JSON data and file references. Optionally query specific paths within the JSON.
+
+**Headers Required:** `Authorization: Bearer <token>`
+
+**Request Body (Inline JSON):**
+```json
+{
+  "message": "What is the average age of users?",
+  "json_data": {
+    "users": [
+      {"name": "Alice", "age": 28},
+      {"name": "Bob", "age": 35}
+    ]
+  },
+  "session_id": "optional-session-id",
+  "temperature": 0.7,
+  "max_tokens": 2000
+}
+```
+
+**Request Body (File Reference):**
+```json
+{
+  "message": "What is the most common email domain?",
+  "file_id": "users-data-123",
+  "session_id": "optional-session-id"
+}
+```
+
+**Request Body (Specific Path Query):**
+```json
+{
+  "message": "What are the street names?",
+  "file_id": "users-data-123",
+  "json_path": "users.0.address",
+  "session_id": "optional-session-id"
+}
+```
+
+**Parameters:**
+- `message` (required): Your question about the JSON data
+- `json_data` (optional): Inline JSON object or stringified JSON
+- `file_id` (optional): Reference to uploaded JSON file (alternative to json_data)
+- `json_path` (optional): Dot notation path to specific data (e.g., "users.0.name", "data.items")
+- `session_id` (optional): Conversation session ID
+- `temperature` (optional): LLM temperature override
+- `max_tokens` (optional): Maximum tokens override
+
+**Note:** Either `json_data` or `file_id` must be provided.
+
+**Response (200 OK):**
+```json
+{
+  "session_id": "session-20251017-123456",
+  "message": "Based on the JSON data, the average age is 31.5 years. Alice is 28 and Bob is 35, giving us (28 + 35) / 2 = 31.5.",
+  "json_data_included": true,
+  "json_path": "root",
+  "raw": {
+    "content": "Based on the JSON data...",
+    "model": "gemma3:12b",
+    "done": true
+  }
+}
+```
+
+**Error Response (400 Bad Request):**
+```json
+{
+  "error": "Either json_data or file_id is required"
+}
+```
+
+**Error Response (400 Bad Request - Invalid JSON):**
+```json
+{
+  "error": "Invalid JSON data: Expecting property name enclosed in double quotes"
+}
+```
+
+**Error Response (400 Bad Request - Invalid Path):**
+```json
+{
+  "error": "Path 'users.999.name' not found in JSON data"
+}
+```
+
+---
+
+### Enhanced JSON File Reading
+
+When you upload a JSON file via `/api/files/upload`, the system automatically enhances it with:
+
+- **Validation**: Checks if the JSON is valid
+- **Statistics**: Counts objects, arrays, keys, and nesting depth
+- **Formatting**: Pretty-prints the JSON with proper indentation
+- **Size Management**: Truncates very large JSON files to prevent token overflow
+
+This happens transparently when reading JSON files through `/api/files/:file_id/read`.
+
+**Example Enhanced Output:**
+```
+=== JSON File Statistics ===
+File: users.json
+Total Keys: 245
+Maximum Depth: 4
+File Size: 15.3 KB
+Valid JSON: Yes
+========================
+
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Alice",
+      ...
+    }
+  ]
 }
 ```
 
