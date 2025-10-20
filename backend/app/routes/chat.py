@@ -232,16 +232,24 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             # Create context message
             context = f"JSON Data Context:\n```json\n{json_formatted}\n```\n\n"
 
-            # Store user message WITH JSON context reference
-            user_message_with_context = f"{context}User Query: {message}"
-            memory.add_message(session_id, "user", user_message_with_context)
+            # Store ONLY the user query in memory (not the full JSON to prevent trimming)
+            memory.add_message(session_id, "user", f"[Analyzing JSON data] {message}")
 
             # Get LLM response with JSON context
             messages = memory.get_context_for_llm(session_id)
+
             # Insert system instruction at the beginning
             messages.insert(0, {
                 "role": "system",
                 "content": "You are analyzing data provided in JSON format. Answer the user's questions based on the JSON context they provide. Be specific and cite the relevant parts of the data structure."
+            })
+
+            # Insert JSON context as a user message right before the last user message
+            # Find the last user message and inject JSON before it
+            last_user_idx = len(messages) - 1
+            messages.insert(last_user_idx, {
+                "role": "user",
+                "content": context
             })
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
@@ -251,11 +259,11 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             memory.add_message(session_id, "assistant", assistant_reply, metadata={"source": "json_chat"})
 
             return jsonify({
-                "session_id": session_id,
                 "context": context,
+                "memory": memory.get_conversation_history(session_id, include_system=True),
                 "message": messages,
                 "response": assistant_reply,
-                "memory": memory.get_conversation_history(session_id, include_system=True)
+                "session_id": session_id,
             })
 
         except json_lib.JSONDecodeError as e:
