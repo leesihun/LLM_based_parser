@@ -221,6 +221,9 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             if json_path:
                 json_data = _extract_json_path(json_data, json_path)
 
+            # Generate numeric summary to ground the model on extrema
+            numeric_summary = _generate_numeric_summary(json_data)
+
             # Format JSON for context
             json_formatted = json_lib.dumps(json_data, indent=2, ensure_ascii=False)
 
@@ -230,7 +233,11 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
                 json_formatted = json_formatted[:max_json_length] + "\n... (truncated)"
 
             # Create context message
-            context = f"JSON Data Context:\n```json\n{json_formatted}\n```\n\n"
+            context_parts = []
+            if numeric_summary:
+                context_parts.append(numeric_summary)
+            context_parts.append(f"JSON Data Context:\n```json\n{json_formatted}\n```")
+            context = "\n\n".join(context_parts) + "\n\n"
 
             # Store ONLY the user query in memory (not the full JSON to prevent trimming)
             memory.add_message(session_id, "user", f"[Analyzing JSON data] {message}")
@@ -239,10 +246,15 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             messages = memory.get_context_for_llm(session_id)
 
             # Insert system instruction at the beginning
-            messages.insert(0, {
-                "role": "system",
-                "content": "You are analyzing data provided in JSON format. Answer the user's questions based on the JSON context provided in the user message. Be specific and cite the relevant parts of the data structure."
-            })
+            system_prompt = (
+                "You are analyzing data provided in JSON format. "
+                "Answer the user's questions using only the JSON context supplied. "
+                "Cite the relevant JSON path or object snippet when referencing information. "
+                "For numerical questions such as minima, maxima, averages, or totals, locate the exact values in the JSON, "
+                "show the supporting data, and never guess. "
+                "If the information cannot be determined from the context, say so explicitly."
+            )
+            messages.insert(0, {"role": "system", "content": system_prompt})
 
             # Replace the last user message with JSON context + query combined
             # This ensures the LLM sees them together as one cohesive request
@@ -257,6 +269,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             return jsonify({
                 "context": context,
+                "numeric_summary": numeric_summary,
                 "memory": memory.get_conversation_history(session_id, include_system=True),
                 "message": messages,
                 "response": assistant_reply,
@@ -267,6 +280,88 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             raise ValidationError(f"Invalid JSON data: {str(e)}")
         except Exception as e:
             raise ValidationError(f"Error processing JSON: {str(e)}")
+
+    def _generate_numeric_summary(data, max_sections: int = 12, max_child_items: int = 25) -> str:
+        """Create a lightweight numeric summary (min/max/mean) to reduce hallucinations."""
+        from collections import deque
+
+        def _is_number(value) -> bool:
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+        def _format_number(value):
+            if isinstance(value, float):
+                return f"{value:.6g}"
+            return str(value)
+
+        stats = []
+        seen_paths = set()
+        queue = deque([(data, "$")])
+        visited = 0
+        max_iterations = 10000
+
+        def add_stat(path: str, values, include_mean: bool = False):
+            if not values or len(stats) >= max_sections:
+                return
+            canonical_path = path or "$"
+            if canonical_path in seen_paths:
+                return
+            entry = {
+                "path": canonical_path,
+                "count": len(values),
+                "min": min(values),
+                "max": max(values),
+            }
+            if include_mean:
+                entry["mean"] = sum(values) / len(values)
+            stats.append(entry)
+            seen_paths.add(canonical_path)
+
+        while queue and len(stats) < max_sections and visited < max_iterations:
+            current, path = queue.popleft()
+            visited += 1
+
+            if isinstance(current, dict):
+                for key, value in current.items():
+                    child_path = f"{path}.{key}" if path != "$" else f"$.{key}"
+                    queue.append((value, child_path))
+            elif isinstance(current, list):
+                numeric_vals = [item for item in current if _is_number(item)]
+                add_stat(path, numeric_vals, include_mean=True)
+
+                if any(isinstance(item, dict) for item in current):
+                    keys = []
+                    for item in current[:max_child_items]:
+                        if isinstance(item, dict):
+                            for key in item.keys():
+                                if key not in keys:
+                                    keys.append(key)
+                    for key in keys:
+                        numeric_items = [
+                            item[key]
+                            for item in current
+                            if isinstance(item, dict) and _is_number(item.get(key))
+                        ]
+                        child_path = f"{path}[].{key}" if path != "$" else f"$[].{key}"
+                        add_stat(child_path, numeric_items, include_mean=True)
+                        if len(stats) >= max_sections:
+                            break
+
+                for idx, value in enumerate(current[:max_child_items]):
+                    queue.append((value, f"{path}[{idx}]"))
+
+        if not stats:
+            return ""
+
+        lines = ["Numeric Summary (auto-generated):"]
+        for stat in stats[:max_sections]:
+            line = (
+                f"- {stat['path']}: count={stat['count']}, "
+                f"min={_format_number(stat['min'])}, max={_format_number(stat['max'])}"
+            )
+            if "mean" in stat:
+                line += f", mean={_format_number(stat['mean'])}"
+            lines.append(line)
+        return "\n".join(lines)
 
     def _extract_json_path(data, path: str):
         """Extract data from JSON using dot notation path (e.g., 'users.0.name')"""
