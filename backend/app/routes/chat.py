@@ -39,7 +39,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
         return jsonify({
             "session_id": session_id,
-            "response": assistant_reply  # Old frontend expects 'response' not 'message'
+            "response": assistant_reply
         })
 
     # Legacy endpoint for RAG - /api/chat/rag
@@ -139,7 +139,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             {
                 "session_id": session_id,
                 "message": assistant_reply,
-                "raw": result,
+                "response": result,
                 "history": memory.get_conversation_history(session_id, include_system=True),
             }
         )
@@ -225,7 +225,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             json_formatted = json_lib.dumps(json_data, indent=2, ensure_ascii=False)
 
             # Limit JSON size to avoid token overflow
-            max_json_length = 8000
+            max_json_length = 8000000000000000
             if len(json_formatted) > max_json_length:
                 json_formatted = json_formatted[:max_json_length] + "\n... (truncated)"
 
@@ -259,7 +259,8 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
                 "message": assistant_reply,
                 "json_data_included": True,
                 "json_path": json_path if json_path else "root",
-                "raw": result
+                "json_data": json_data,
+                "response": result
             })
 
         except json_lib.JSONDecodeError as e:
