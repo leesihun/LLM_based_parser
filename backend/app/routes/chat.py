@@ -252,11 +252,10 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             return jsonify({
                 "session_id": session_id,
-                "message": assistant_reply,
-                "json_data_included": True,
-                "json_path": json_path if json_path else "root",
-                "json_data": json_data,
-                "response": result
+                "context": context,
+                "message": messages,
+                "response": assistant_reply,
+                "memory": memory.get_conversation_history(session_id, include_system=True)
             })
 
         except json_lib.JSONDecodeError as e:
