@@ -189,8 +189,9 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         session_id = payload.get("session_id") or memory.create_session(
             getattr(request, "user", {}).get("user_id")
         )
-        temperature = payload.get("temperature")
-        max_tokens = payload.get("max_tokens")
+        # Force low temperature for factual accuracy (allow override but default to 0.0)
+        temperature = payload.get("temperature", 0.0)
+        max_tokens = payload.get("max_tokens", 2000)
 
         try:
             # Load JSON data
@@ -242,24 +243,34 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             # Store ONLY the user query in memory (not the full JSON to prevent trimming)
             memory.add_message(session_id, "user", f"[Analyzing JSON data] {message}")
 
-            # Get LLM response with JSON context
-            messages = memory.get_context_for_llm(session_id)
-
-            # Insert system instruction with JSON context at the beginning
+            # Create isolated message context (no conversation history for accuracy)
+            # This prevents previous conversations from contaminating JSON analysis
             system_prompt = (
-                "You are analyzing data provided in JSON format. "
-                "Answer the user's questions using only the JSON context supplied below. "
-                "Cite the relevant JSON path or object snippet when referencing information. "
-                "For numerical questions such as minima, maxima, averages, or totals, locate the exact values in the JSON, "
-                "show the supporting data, and never guess. "
-                "If the information cannot be determined from the context, say so explicitly. "
-                "The context is given as follows: \n\n"
-                f"{context}"
+                "Answer based solely on the JSON data provided. "
+                "Cite JSON paths when referencing information. "
+                "For numeric questions, use exact values from the data. "
+                "Never guess or hallucinate. "
+                "If information is missing from the data, state so explicitly.\n\n"
+                "IMPORTANT: Show your step-by-step reasoning:\n"
+                "1. Identify the relevant JSON path(s)\n"
+                "2. Extract the exact values\n"
+                "3. Perform any calculations (if needed)\n"
+                "4. State your final answer"
             )
-            messages.insert(0, {"role": "system", "content": system_prompt})
+
+            user_message_with_context = f"{context}\n\n---\n\nQuery: {message}"
+
+            # Use isolated context (no history) for maximum accuracy
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message_with_context}
+            ]
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
             assistant_reply = result.get("content", "")
+
+            # Validate response against numeric summary if available
+            validation_notes = _validate_response(assistant_reply, numeric_summary, message)
 
             # Store assistant response
             memory.add_message(session_id, "assistant", assistant_reply, metadata={"source": "json_chat"})
@@ -267,6 +278,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             return jsonify({
                 "context": context,
                 "numeric_summary": numeric_summary,
+                "validation_notes": validation_notes,
                 "memory": memory.get_conversation_history(session_id, include_system=True),
                 "message": messages,
                 "response": assistant_reply,
@@ -420,6 +432,75 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             )
             lines.append(line)
         return "\n".join(lines)
+
+    def _validate_response(response: str, numeric_summary: str, query: str) -> dict:
+        """Validate LLM response against numeric summary for basic sanity checks."""
+        import re
+
+        validation = {
+            "validated": False,
+            "warnings": [],
+            "info": []
+        }
+
+        if not numeric_summary or not response:
+            validation["info"].append("No numeric summary available for validation")
+            return validation
+
+        # Extract numbers from the response
+        response_numbers = re.findall(r'-?\d+\.?\d*', response)
+        response_floats = [float(n) for n in response_numbers if n]
+
+        if not response_floats:
+            validation["info"].append("No numeric values found in response")
+            return validation
+
+        # Parse numeric summary to extract ranges
+        summary_lines = numeric_summary.split('\n')[1:]  # Skip header
+
+        # Check for common numeric query keywords
+        query_lower = query.lower()
+        is_numeric_query = any(keyword in query_lower for keyword in [
+            'sum', 'total', 'max', 'min', 'average', 'mean', 'median',
+            'highest', 'lowest', 'count', 'how many', 'number of'
+        ])
+
+        if is_numeric_query:
+            validation["validated"] = True
+
+            # Extract min/max from summary for validation
+            for line in summary_lines:
+                if not line.strip():
+                    continue
+
+                # Parse line: "- $.path: n=X, sum=Y, min=Z, max=W, ..."
+                min_match = re.search(r'min=(-?\d+\.?\d*)', line)
+                max_match = re.search(r'max=(-?\d+\.?\d*)', line)
+                sum_match = re.search(r'sum=(-?\d+\.?\d*)', line)
+
+                if min_match and max_match:
+                    min_val = float(min_match.group(1))
+                    max_val = float(max_match.group(1))
+
+                    # Check if response numbers are within data range
+                    for num in response_floats:
+                        if num < min_val - 0.01 or num > max_val + 0.01:  # Small epsilon for float comparison
+                            # Check if it could be a sum or aggregate
+                            if sum_match:
+                                sum_val = float(sum_match.group(1))
+                                if abs(num - sum_val) < 0.01:
+                                    continue  # It's a valid sum
+
+                            validation["warnings"].append(
+                                f"Value {num} in response appears outside data range [{min_val}, {max_val}]"
+                            )
+
+            if not validation["warnings"]:
+                validation["info"].append("Response values appear consistent with data ranges")
+        else:
+            validation["info"].append("Non-numeric query - validation skipped")
+
+        return validation
 
     def _extract_json_path(data, path: str):
         """Extract data from JSON using dot notation path (e.g., 'users.0.name')"""
