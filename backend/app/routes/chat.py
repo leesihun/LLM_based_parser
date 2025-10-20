@@ -241,7 +241,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             # Insert JSON context as system message
             messages.insert(0, {
                 "role": "system",
-                "content": "You are analyzing JSON data. Answer the user's questions based on the provided JSON context. Be specific and cite the relevant parts of the JSON structure."
+                "content": "Answer the user's questions based on the provided context. Be specific and cite the relevant parts of the context structure."
             })
             messages.insert(1, {
                 "role": "system",
