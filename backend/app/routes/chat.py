@@ -241,16 +241,13 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             # Insert system instruction at the beginning
             messages.insert(0, {
                 "role": "system",
-                "content": "You are analyzing data provided in JSON format. Answer the user's questions based on the JSON context they provide. Be specific and cite the relevant parts of the data structure."
+                "content": "You are analyzing data provided in JSON format. Answer the user's questions based on the JSON context provided in the user message. Be specific and cite the relevant parts of the data structure."
             })
 
-            # Insert JSON context as a user message right before the last user message
-            # Find the last user message and inject JSON before it
-            last_user_idx = len(messages) - 1
-            messages.insert(last_user_idx, {
-                "role": "user",
-                "content": context
-            })
+            # Replace the last user message with JSON context + query combined
+            # This ensures the LLM sees them together as one cohesive request
+            combined_message = f"{context}\nUser Query: {message}"
+            messages[-1]["content"] = combined_message
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
             assistant_reply = result.get("content", "")
