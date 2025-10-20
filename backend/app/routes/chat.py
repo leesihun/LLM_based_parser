@@ -282,8 +282,9 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             raise ValidationError(f"Error processing JSON: {str(e)}")
 
     def _generate_numeric_summary(data, max_sections: int = 12, max_child_items: int = 25) -> str:
-        """Create a lightweight numeric summary (min/max/mean) to reduce hallucinations."""
+        """Create a lightweight numeric summary (min/max/mean/median/sum) to reduce hallucinations."""
         from collections import deque
+        import statistics
 
         def _is_number(value) -> bool:
             return isinstance(value, (int, float)) and not isinstance(value, bool)
@@ -299,20 +300,30 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         visited = 0
         max_iterations = 10000
 
-        def add_stat(path: str, values, include_mean: bool = False):
-            if not values or len(stats) >= max_sections:
+        def add_stat(path: str, entries):
+            if not entries or len(stats) >= max_sections:
                 return
             canonical_path = path or "$"
             if canonical_path in seen_paths:
                 return
+            values = [entry["value"] for entry in entries]
+            min_entry = min(entries, key=lambda entry: entry["value"])
+            max_entry = max(entries, key=lambda entry: entry["value"])
+            sorted_values = sorted(values)
+
             entry = {
                 "path": canonical_path,
                 "count": len(values),
-                "min": min(values),
-                "max": max(values),
+                "min": min_entry["value"],
+                "max": max_entry["value"],
+                "min_path": min_entry.get("path"),
+                "max_path": max_entry.get("path"),
+                "min_id": min_entry.get("id"),
+                "max_id": max_entry.get("id"),
+                "sum": sum(values),
+                "mean": statistics.mean(values),
+                "median": statistics.median(sorted_values) if len(sorted_values) > 1 else sorted_values[0],
             }
-            if include_mean:
-                entry["mean"] = sum(values) / len(values)
             stats.append(entry)
             seen_paths.add(canonical_path)
 
@@ -320,13 +331,24 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             current, path = queue.popleft()
             visited += 1
 
+            if _is_number(current):
+                # Avoid redundant stats for individual list indices when aggregate exists
+                if "[]." not in path and "[" in path and path.endswith("]"):
+                    continue
+                add_stat(path, [{"value": current, "path": path, "id": None}])
+                continue
+
             if isinstance(current, dict):
                 for key, value in current.items():
                     child_path = f"{path}.{key}" if path != "$" else f"$.{key}"
                     queue.append((value, child_path))
             elif isinstance(current, list):
-                numeric_vals = [item for item in current if _is_number(item)]
-                add_stat(path, numeric_vals, include_mean=True)
+                numeric_entries = [
+                    {"value": item, "path": f"{path}[{idx}]", "id": None}
+                    for idx, item in enumerate(current)
+                    if _is_number(item)
+                ]
+                add_stat(path, numeric_entries)
 
                 if any(isinstance(item, dict) for item in current):
                     keys = []
@@ -335,14 +357,30 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
                             for key in item.keys():
                                 if key not in keys:
                                     keys.append(key)
+                    identifier_keys = ("id", "ID", "Id", "identifier", "name", "key", "title")
                     for key in keys:
-                        numeric_items = [
-                            item[key]
-                            for item in current
-                            if isinstance(item, dict) and _is_number(item.get(key))
-                        ]
+                        numeric_entries = []
+                        for idx, item in enumerate(current):
+                            if not isinstance(item, dict):
+                                continue
+                            value = item.get(key)
+                            if not _is_number(value):
+                                continue
+                            identifier = None
+                            for identifier_key in identifier_keys:
+                                if identifier_key in item and _is_number(item[identifier_key]):
+                                    identifier = _format_number(item[identifier_key])
+                                    break
+                                if identifier_key in item and isinstance(item[identifier_key], str):
+                                    identifier = item[identifier_key]
+                                    break
+                            numeric_entries.append({
+                                "value": value,
+                                "path": f"{path}[{idx}].{key}",
+                                "id": identifier,
+                            })
                         child_path = f"{path}[].{key}" if path != "$" else f"$[].{key}"
-                        add_stat(child_path, numeric_items, include_mean=True)
+                        add_stat(child_path, numeric_entries)
                         if len(stats) >= max_sections:
                             break
 
@@ -356,10 +394,24 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
         for stat in stats[:max_sections]:
             line = (
                 f"- {stat['path']}: count={stat['count']}, "
-                f"min={_format_number(stat['min'])}, max={_format_number(stat['max'])}"
+                f"sum={_format_number(stat['sum'])}, "
+                f"min={_format_number(stat['min'])}"
             )
-            if "mean" in stat:
-                line += f", mean={_format_number(stat['mean'])}"
+            if stat.get("min_path"):
+                line += f" (path={stat['min_path']}"
+                if stat.get("min_id"):
+                    line += f", id={stat['min_id']}"
+                line += ")"
+            line += f", max={_format_number(stat['max'])}"
+            if stat.get("max_path"):
+                line += f" (path={stat['max_path']}"
+                if stat.get("max_id"):
+                    line += f", id={stat['max_id']}"
+                line += ")"
+            line += (
+                f", mean={_format_number(stat['mean'])}, "
+                f"median={_format_number(stat['median'])}"
+            )
             lines.append(line)
         return "\n".join(lines)
 
