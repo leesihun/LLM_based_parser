@@ -245,21 +245,18 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             # Get LLM response with JSON context
             messages = memory.get_context_for_llm(session_id)
 
-            # Insert system instruction at the beginning
+            # Insert system instruction with JSON context at the beginning
             system_prompt = (
-                "You are analyzing data provided as follows."
-                "Answer the user's questions using only the JSON context supplied. "
+                "You are analyzing data provided in JSON format. "
+                "Answer the user's questions using only the JSON context supplied below. "
                 "Cite the relevant JSON path or object snippet when referencing information. "
                 "For numerical questions such as minima, maxima, averages, or totals, locate the exact values in the JSON, "
                 "show the supporting data, and never guess. "
-                "If the information cannot be determined from the context, say so explicitly."
+                "If the information cannot be determined from the context, say so explicitly. "
+                "The context is given as follows: \n\n"
+                f"{context}"
             )
             messages.insert(0, {"role": "system", "content": system_prompt})
-
-            # Replace the last user message with JSON context + query combined
-            # This ensures the LLM sees them together as one cohesive request
-            combined_message = f"{context}\n\nUser Query: {message}"
-            messages[-1]["content"] = combined_message
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
             assistant_reply = result.get("content", "")
@@ -268,7 +265,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             memory.add_message(session_id, "assistant", assistant_reply, metadata={"source": "json_chat"})
 
             return jsonify({
-                "context": combined_message,
+                "context": context,
                 "numeric_summary": numeric_summary,
                 "memory": memory.get_conversation_history(session_id, include_system=True),
                 "message": messages,
