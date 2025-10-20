@@ -231,21 +231,17 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             # Create context message
             context = f"JSON Data Context:\n```json\n{json_formatted}\n```\n\n"
-            full_message = context + f"User Query: {message}"
 
-            # Store user message
-            memory.add_message(session_id, "user", message)
+            # Store user message WITH JSON context reference
+            user_message_with_context = f"{context}User Query: {message}"
+            memory.add_message(session_id, "user", user_message_with_context)
 
             # Get LLM response with JSON context
             messages = memory.get_context_for_llm(session_id)
-            # Insert JSON context as system message
+            # Insert system instruction at the beginning
             messages.insert(0, {
                 "role": "system",
-                "content": "Answer the user's questions based on the provided context. Be specific and cite the relevant parts of the context structure."
-            })
-            messages.insert(1, {
-                "role": "system",
-                "content": context
+                "content": "You are analyzing data provided in JSON format. Answer the user's questions based on the JSON context they provide. Be specific and cite the relevant parts of the data structure."
             })
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
