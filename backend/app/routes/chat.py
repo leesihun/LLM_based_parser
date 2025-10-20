@@ -233,11 +233,8 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
                 json_formatted = json_formatted[:max_json_length] + "\n... (truncated)"
 
             # Create context message
-            context_parts = []
             if numeric_summary:
-                context_parts.append(numeric_summary)
-            context_parts.append(f"JSON Data Context:\n```json\n{json_formatted}\n```")
-            context = "\n\n".join(context_parts) + "\n\n"
+                json_formatted.append(numeric_summary)
 
             # Store ONLY the user query in memory (not the full JSON to prevent trimming)
             memory.add_message(session_id, "user", f"[Analyzing JSON data] {message}")
@@ -247,7 +244,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             # Insert system instruction at the beginning
             system_prompt = (
-                "You are analyzing data provided in JSON format. "
+                "You are analyzing data provided as follows."
                 "Answer the user's questions using only the JSON context supplied. "
                 "Cite the relevant JSON path or object snippet when referencing information. "
                 "For numerical questions such as minima, maxima, averages, or totals, locate the exact values in the JSON, "
@@ -258,7 +255,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             # Replace the last user message with JSON context + query combined
             # This ensures the LLM sees them together as one cohesive request
-            combined_message = f"{context}\nUser Query: {message}"
+            combined_message = f"{json_formatted}\nUser Query: {message}"
             messages[-1]["content"] = combined_message
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
@@ -268,7 +265,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             memory.add_message(session_id, "assistant", assistant_reply, metadata={"source": "json_chat"})
 
             return jsonify({
-                "context": context,
+                "context": combined_message,
                 "numeric_summary": numeric_summary,
                 "memory": memory.get_conversation_history(session_id, include_system=True),
                 "message": messages,
@@ -392,24 +389,33 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
         lines = ["Numeric Summary (auto-generated):"]
         for stat in stats[:max_sections]:
+            # Build min/max location strings
+            min_loc = ""
+            if stat.get("min_id") is not None:
+                min_loc = f" @id={stat['min_id']}"
+            elif stat.get("min_path"):
+                # Simplify path display - show only the index/key part
+                path_parts = stat['min_path'].split('[')
+                if len(path_parts) > 1:
+                    min_loc = f" @[{path_parts[-1]}"
+
+            max_loc = ""
+            if stat.get("max_id") is not None:
+                max_loc = f" @id={stat['max_id']}"
+            elif stat.get("max_path"):
+                # Simplify path display - show only the index/key part
+                path_parts = stat['max_path'].split('[')
+                if len(path_parts) > 1:
+                    max_loc = f" @[{path_parts[-1]}"
+
+            # Build the summary line
             line = (
-                f"- {stat['path']}: count={stat['count']}, "
+                f"- {stat['path']}: "
+                f"n={stat['count']}, "
                 f"sum={_format_number(stat['sum'])}, "
-                f"min={_format_number(stat['min'])}"
-            )
-            if stat.get("min_path"):
-                line += f" (path={stat['min_path']}"
-                if stat.get("min_id"):
-                    line += f", id={stat['min_id']}"
-                line += ")"
-            line += f", max={_format_number(stat['max'])}"
-            if stat.get("max_path"):
-                line += f" (path={stat['max_path']}"
-                if stat.get("max_id"):
-                    line += f", id={stat['max_id']}"
-                line += ")"
-            line += (
-                f", mean={_format_number(stat['mean'])}, "
+                f"min={_format_number(stat['min'])}{min_loc}, "
+                f"max={_format_number(stat['max'])}{max_loc}, "
+                f"mean={_format_number(stat['mean'])}, "
                 f"median={_format_number(stat['median'])}"
             )
             lines.append(line)
