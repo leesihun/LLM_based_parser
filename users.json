@@ -1,0 +1,19 @@
+{
+  "admin": {
+    "user_id": "admin",
+    "username": "admin",
+    "email": "admin@heteam.com",
+    "password_hash": "administrator",
+    "salt": "",
+    "role": "admin",
+    "display_name": "Administrator",
+    "created_at": "2025-10-20T17:19:15.558246",
+    "last_login": null,
+    "is_active": true,
+    "settings": {
+      "theme": "dark",
+      "language": "en",
+      "notifications": true
+    }
+  }
+}

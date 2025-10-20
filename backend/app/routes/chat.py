@@ -228,13 +228,16 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
             json_formatted = json_lib.dumps(json_data, indent=2, ensure_ascii=False)
 
             # Limit JSON size to avoid token overflow
-            max_json_length = 8000000000000000
+            max_json_length = 50000  # Reasonable limit for most JSON data
             if len(json_formatted) > max_json_length:
                 json_formatted = json_formatted[:max_json_length] + "\n... (truncated)"
 
             # Create context message
+            context_parts = []
             if numeric_summary:
-                json_formatted.append(numeric_summary)
+                context_parts.append(numeric_summary)
+            context_parts.append(f"JSON Data Context:\n```json\n{json_formatted}\n```")
+            context = "\n\n".join(context_parts)
 
             # Store ONLY the user query in memory (not the full JSON to prevent trimming)
             memory.add_message(session_id, "user", f"[Analyzing JSON data] {message}")
@@ -255,7 +258,7 @@ def create_blueprint(ctx: RouteContext) -> Blueprint:
 
             # Replace the last user message with JSON context + query combined
             # This ensures the LLM sees them together as one cohesive request
-            combined_message = f"{json_formatted}\nUser Query: {message}"
+            combined_message = f"{context}\n\nUser Query: {message}"
             messages[-1]["content"] = combined_message
 
             result = llm_client.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
