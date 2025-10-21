@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HE Team LLM Assistant - Enhanced</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -936,12 +937,17 @@
     </div>
 
     <script>
+        // Helper function to create API URLs
+        function apiUrl(path) {
+            return `${CONFIG.API_BASE_URL}${path}`;
+        }
+
         // Global variables
         let currentMode = 'normal';
         let sessionId = null;
         let selectedFileId = null;
         let userToken = localStorage.getItem('session_token');
-        
+
         // Performance metrics
         let lastResponseTime = 0;
         let lastTokensPerSecond = 0;
@@ -952,7 +958,7 @@
             window.location.href = 'login.html';
         } else {
             // Verify token is still valid
-            fetch('/api/auth/me', {
+            fetch(`${CONFIG.API_BASE_URL}/api/auth/me`, {
                 headers: {
                     'Authorization': `Bearer ${userToken}`
                 }
@@ -1175,7 +1181,7 @@
         }
 
         async function sendNormalMessage(message) {
-            const response = await fetch('/api/chat', {
+            const response = await fetch(apiUrl('/api/chat'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1195,7 +1201,7 @@
         }
 
         async function sendRagMessage(message) {
-            const response = await fetch('/api/chat/rag', {
+            const response = await fetch(apiUrl('/api/chat/rag'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1216,7 +1222,7 @@
 
         async function sendDocumentMessage(message) {
             // For document analysis, use RAG chat which searches the knowledge base
-            const response = await fetch('/api/chat/rag', {
+            const response = await fetch(apiUrl('/api/chat/rag'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1240,7 +1246,7 @@
                 throw new Error('No file selected for analysis');
             }
 
-            const response = await fetch(`/api/files/${selectedFileId}/read`, {
+            const response = await fetch(apiUrl(`/api/files/${selectedFileId}/read`), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1260,7 +1266,7 @@
         }
 
         async function sendSearchMessage(message) {
-            const response = await fetch('/api/chat/web-search', {
+            const response = await fetch(apiUrl('/api/chat/web-search'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1391,7 +1397,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch('/api/files/upload', {
+                const response = await fetch(apiUrl('/api/files/upload'), {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${userToken}`
@@ -1413,7 +1419,7 @@
 
         async function loadUploadedFiles() {
             try {
-                const response = await fetch('/api/files', {
+                const response = await fetch(apiUrl('/api/files'), {
                     headers: {
                         'Authorization': `Bearer ${userToken}`
                     }
@@ -1508,7 +1514,7 @@
             }
 
             try {
-                const response = await fetch(`/api/files/${fileId}`, {
+                const response = await fetch(apiUrl(`/api/files/${fileId}`), {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${userToken}`
@@ -1533,12 +1539,12 @@
 
         async function checkSystemStatus() {
             try {
-                const response = await fetch('/health');
+                const response = await fetch(apiUrl('/health'));
                 const health = await response.json();
                 
                 let ragStatus = 'Unknown';
                 try {
-                    const ragResponse = await fetch('/api/rag/stats', {
+                    const ragResponse = await fetch(apiUrl('/api/rag/stats'), {
                         headers: { 'Authorization': `Bearer ${userToken}` }
                     });
                     const ragData = await ragResponse.json();
@@ -1630,7 +1636,7 @@
             }
 
             try {
-                await fetch('/api/auth/logout', {
+                await fetch(apiUrl('/api/auth/logout'), {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${userToken}`
@@ -1665,14 +1671,14 @@
         async function loadCurrentSettings() {
             try {
                 // Load current user info
-                const userResponse = await fetch('/api/auth/me', {
+                const userResponse = await fetch(apiUrl('/api/auth/me'), {
                     headers: { 'Authorization': `Bearer ${userToken}` }
                 });
                 const userData = await userResponse.json();
                 document.getElementById('currentUserInput').value = userData.user.username;
 
                 // Load current config
-                const configResponse = await fetch('/api/config');
+                const configResponse = await fetch(apiUrl('/api/config'));
                 const config = await configResponse.json();
                 document.getElementById('serverUrlInput').value = config.ollama?.host || 'Unknown';
                 
@@ -1683,7 +1689,7 @@
 
         async function loadAvailableModels() {
             try {
-                const response = await fetch('/api/models');
+                const response = await fetch(apiUrl('/api/models'));
                 const data = await response.json();
                 
                 const modelSelect = document.getElementById('modelSelect');
@@ -1698,7 +1704,7 @@
                     });
                     
                     // Get current model
-                    const configResponse = await fetch('/api/config');
+                    const configResponse = await fetch(apiUrl('/api/config'));
                     const config = await configResponse.json();
                     modelSelect.value = config.ollama?.model || '';
                 } else {
@@ -1724,11 +1730,11 @@
                 
                 // Update model if changed
                 if (modelSelect.value) {
-                    const configResponse = await fetch('/api/config');
+                    const configResponse = await fetch(apiUrl('/api/config'));
                     const currentConfig = await configResponse.json();
                     
                     if (currentConfig.ollama?.model !== modelSelect.value) {
-                        const updateResponse = await fetch('/api/config', {
+                        const updateResponse = await fetch(apiUrl('/api/config'), {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1748,7 +1754,7 @@
                 
                 // Change password if provided
                 if (oldPassword && newPassword) {
-                    const passwordResponse = await fetch('/api/auth/change-password', {
+                    const passwordResponse = await fetch(apiUrl('/api/auth/change-password'), {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

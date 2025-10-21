@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Entry point for the HE team backend API server."""
+"""Backend API server - provides REST API endpoints."""
 
 from __future__ import annotations
 
+import os
 import socket
 
 from backend.app import create_app
 
-app = create_app()
-
 
 def _local_ip() -> str:
+    """Get the local IP address."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.connect(("8.8.8.8", 80))
@@ -20,13 +20,18 @@ def _local_ip() -> str:
 
 
 def main() -> None:
+    """Run the backend API server."""
+    # Create Flask app (API only, no static file serving)
+    app = create_app()
     services = app.config["services"]
     config = services.llm_client.config
-    host = config.get("server", {}).get("host", "0.0.0.0")
-    port = config.get("server", {}).get("port", 8000)
+
+    # Get host and port from environment variables or config
+    host = os.environ.get('BACKEND_HOST', config.get("server", {}).get("host", "0.0.0.0"))
+    port = int(os.environ.get('BACKEND_PORT', config.get("server", {}).get("port", 8000)))
 
     print("=" * 60)
-    print("HE team LLM assistant - Backend API")
+    print("HE Team LLM Assistant - Backend API Server")
     print("=" * 60)
     print(f"Server Host: {host}")
     print(f"Server Port: {port}")
@@ -39,7 +44,15 @@ def main() -> None:
     if network_ip and network_ip != "127.0.0.1":
         print(f"  Network: http://{network_ip}:{port}")
     print()
-    print("Frontend expected at /frontend (run separately).")
+    print("API Endpoints:")
+    print(f"  Health:  http://localhost:{port}/health")
+    print(f"  Chat:    http://localhost:{port}/api/chat")
+    print(f"  RAG:     http://localhost:{port}/api/chat/rag")
+    print(f"  Search:  http://localhost:{port}/api/chat/web-search")
+    print()
+    print("NOTE: Frontend should be run separately!")
+    print("      Run 'python run_frontend.py' in another terminal")
+    print()
     print("Press Ctrl+C to stop")
     print("=" * 60)
 

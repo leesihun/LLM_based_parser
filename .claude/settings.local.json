@@ -36,7 +36,8 @@
       "Bash(TOKEN=\"9D8rymtbX-QyeZRcFbc4UVY9kbxbJjbO22QQjeIyUA0\")",
       "Bash(find:*)",
       "Bash(cp:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

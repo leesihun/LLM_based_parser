@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - HE Team LLM Assistant</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="config.js"></script>
     <style>
         * {
             margin: 0;
@@ -241,12 +242,17 @@
     </div>
 
     <script>
+        // Helper function to create API URLs
+        function apiUrl(path) {
+            return `${CONFIG.API_BASE_URL}${path}`;
+        }
+
         // Check if already logged in
         document.addEventListener('DOMContentLoaded', () => {
             const token = localStorage.getItem('session_token');
             if (token) {
                 // Verify token is still valid
-                fetch('/api/auth/me', {
+                fetch(apiUrl('/api/auth/me'), {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -289,7 +295,7 @@
             errorMessage.style.display = 'none';
 
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(apiUrl('/api/auth/login'), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

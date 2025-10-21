@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, TYPE_CHECKING
 
 from backend.core.conversation_memory import ConversationMemory
-from backend.core.llm_client import LLMClient
+from backend.core.llm import LLMClient
 from backend.core.user_management import UserManager
 from backend.services.files.file_handler import FileHandler
 from backend.services.search.web_search_feature import WebSearchFeature
